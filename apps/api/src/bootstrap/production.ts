@@ -9,6 +9,24 @@ const logger = new Logger('Bootstrap');
 const apiRoot = resolve(__dirname, '../..');
 
 /**
+ * Hostinger writes DATABASE_URL with host "localhost", which can resolve to IPv6 (::1) where the
+ * database user has no grant. Point it at 127.0.0.1 before Prisma reads it.
+ */
+export function normalizeDatabaseUrl() {
+  const raw = process.env.DATABASE_URL;
+  if (!raw) return;
+  try {
+    const url = new URL(raw);
+    if (url.hostname === 'localhost') {
+      url.hostname = '127.0.0.1';
+      process.env.DATABASE_URL = url.toString();
+    }
+  } catch {
+    // Leave an unparsable value alone; Prisma reports it clearly.
+  }
+}
+
+/**
  * Applies pending Prisma migrations. Runs at start-up because shared hosting has no
  * shell step between build and start. Fails loudly so a broken schema never serves traffic.
  */

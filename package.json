@@ -4,7 +4,7 @@
   "packageManager": "pnpm@12.5.1",
   "scripts": {
     "dev": "turbo run dev",
-    "build": "pnpm --filter @udhay/shared build && pnpm --filter @udhay/api build && pnpm --filter @udhay/web build",
+    "build": "node scripts/build.mjs",
     "start": "node apps/api/dist/main.js",
     "typecheck": "turbo run typecheck",
     "test": "pnpm --filter @udhay/api test",

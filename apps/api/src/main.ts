@@ -7,12 +7,13 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
-import { createWebHandler, runMigrations } from './bootstrap/production';
+import { createWebHandler, normalizeDatabaseUrl, runMigrations } from './bootstrap/production';
 import { runSeed, seedOptionsFromEnv } from './bootstrap/seed';
 import { PrismaService } from './prisma/prisma.module';
 
 async function bootstrap() {
   const isProd = process.env.NODE_ENV === 'production';
+  normalizeDatabaseUrl();
   // On the server there is no separate release step, so the app prepares its own database.
   if (isProd && process.env.DB_AUTO_MIGRATE !== 'false') runMigrations();
 
