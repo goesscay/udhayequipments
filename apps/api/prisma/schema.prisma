@@ -1,0 +1,362 @@
+// Enum values for TeamCode, StageCode, DocumentType and Scope must match
+// packages/shared. The API asserts this at compile time (src/common/enum-sync.ts).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum TeamCode {
+  MANAGEMENT
+  SALES
+  PROJECT
+  ADMIN
+  CAD
+  PRODUCTION
+  DISPATCH
+  SERVICE
+}
+
+enum Scope {
+  OWN
+  TEAM
+  ALL
+}
+
+enum StageCode {
+  LEAD
+  SITE_SURVEY
+  QUOTATION_PREP
+  QUOTATION_SHARED
+  CUSTOMER_DECISION
+  BOQ_DRAWING
+  LAYOUT_APPROVAL
+  CAD_DRAWING
+  HEAD_APPROVAL
+  PRODUCTION
+  DISPATCH
+  INSTALLATION
+  HANDOVER
+  SERVICE
+}
+
+enum ProjectStatus {
+  ACTIVE
+  ON_HOLD
+  LOST
+  COMPLETED
+  CANCELLED
+}
+
+enum StageStatus {
+  OPEN
+  DONE
+  RETURNED
+}
+
+enum Priority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+enum DocumentType {
+  REQUIREMENT
+  MEASUREMENT
+  SITE_PHOTO
+  QUOTATION
+  BOQ
+  SOFT_DRAWING
+  CUSTOMER_APPROVAL
+  CAD
+  QC_REPORT
+  DELIVERY_CHALLAN
+  POD
+  INSTALLATION_PHOTO
+  HANDOVER_CERT
+  OTHER
+}
+
+// ─── Identity & access ──────────────────────────────────────────────
+
+model Team {
+  id    String   @id @default(cuid())
+  code  TeamCode @unique
+  name  String
+  users User[]
+}
+
+model Role {
+  id          String           @id @default(cuid())
+  code        String           @unique
+  name        String
+  description String?
+  isSystem    Boolean          @default(false)
+  permissions RolePermission[]
+  users       User[]
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+}
+
+model Permission {
+  id          String           @id @default(cuid())
+  key         String           @unique
+  description String
+  roles       RolePermission[]
+}
+
+model RolePermission {
+  roleId       String
+  permissionId String
+  scope        Scope
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+}
+
+model User {
+  id           String    @id @default(cuid())
+  name         String
+  email        String    @unique
+  phone        String?   @unique
+  passwordHash String
+  isActive     Boolean   @default(true)
+  roleId       String
+  teamId       String?
+  lastLoginAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime?
+
+  role Role  @relation(fields: [roleId], references: [id])
+  team Team? @relation(fields: [teamId], references: [id])
+
+  refreshTokens    RefreshToken[]
+  ownedProjects    Project[]         @relation("ProjectSalesOwner")
+  createdProjects  Project[]         @relation("ProjectCreatedBy")
+  assignedStages   ProjectStage[]    @relation("StageAssignee")
+  acceptedStages   ProjectStage[]    @relation("StageAcceptedBy")
+  transitions      StageTransition[]
+  documents        Document[]
+  comments         Comment[]
+  createdCustomers Customer[]
+  auditLogs        AuditLog[]
+  notifications    Notification[]
+
+  @@index([teamId])
+}
+
+model RefreshToken {
+  id           String    @id @default(cuid())
+  userId       String
+  tokenHash    String    @db.Char(64)
+  expiresAt    DateTime
+  revokedAt    DateTime?
+  replacedById String?
+  userAgent    String?   @db.VarChar(255)
+  ip           String?   @db.VarChar(64)
+  createdAt    DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// ─── Customers & projects ───────────────────────────────────────────
+
+model Customer {
+  id            String    @id @default(cuid())
+  name          String
+  contactPerson String?
+  phone         String
+  email         String?
+  city          String?
+  address       String?   @db.Text
+  gstin         String?   @db.VarChar(20)
+  createdById   String
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  deletedAt     DateTime?
+
+  createdBy User      @relation(fields: [createdById], references: [id])
+  projects  Project[]
+
+  @@index([name])
+  @@index([phone])
+}
+
+model Project {
+  id             String        @id @default(cuid())
+  code           String        @unique
+  title          String
+  customerId     String
+  siteAddress    String?       @db.Text
+  city           String?
+  requirement    String?       @db.Text
+  estimatedValue Decimal?      @db.Decimal(14, 2)
+  priority       Priority      @default(NORMAL)
+  status         ProjectStatus @default(ACTIVE)
+  currentStage   StageCode     @default(LEAD)
+  currentTeam    TeamCode      @default(SALES)
+  stageDueAt     DateTime?
+  holdReason     String?       @db.Text
+  salesOwnerId   String
+  createdById    String
+  closedAt       DateTime?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  deletedAt      DateTime?
+
+  customer      Customer          @relation(fields: [customerId], references: [id])
+  salesOwner    User              @relation("ProjectSalesOwner", fields: [salesOwnerId], references: [id])
+  createdBy     User              @relation("ProjectCreatedBy", fields: [createdById], references: [id])
+  stages        ProjectStage[]
+  transitions   StageTransition[]
+  documents     Document[]
+  comments      Comment[]
+  notifications Notification[]
+
+  @@index([status, currentStage])
+  @@index([currentTeam, status])
+  @@index([stageDueAt])
+  @@index([customerId])
+  @@index([salesOwnerId])
+}
+
+/// One row per visit of a project to a stage. Revisions create a new row (cycle 2, 3…).
+model ProjectStage {
+  id            String      @id @default(cuid())
+  projectId     String
+  stage         StageCode
+  team          TeamCode
+  cycle         Int         @default(1)
+  status        StageStatus @default(OPEN)
+  assigneeId    String?
+  startedAt     DateTime    @default(now())
+  acceptedAt    DateTime?
+  acceptedById  String?
+  dueAt         DateTime?
+  completedAt   DateTime?
+  /// Highest SLA alert already sent for this visit (0 none, 1 due soon, 2 overdue, 3 escalated to admins).
+  slaAlertLevel Int         @default(0)
+
+  project    Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  assignee   User?   @relation("StageAssignee", fields: [assigneeId], references: [id])
+  acceptedBy User?   @relation("StageAcceptedBy", fields: [acceptedById], references: [id])
+
+  @@index([projectId, stage])
+  @@index([status, team])
+  @@index([status, dueAt])
+  @@index([assigneeId, status])
+}
+
+model StageTransition {
+  id        String     @id @default(cuid())
+  projectId String
+  fromStage StageCode?
+  toStage   StageCode?
+  action    String     @db.VarChar(40)
+  reason    String?    @db.Text
+  byUserId  String
+  createdAt DateTime   @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  byUser  User    @relation(fields: [byUserId], references: [id])
+
+  @@index([projectId, createdAt])
+  @@index([createdAt])
+}
+
+model Document {
+  id           String       @id @default(cuid())
+  projectId    String
+  stage        StageCode
+  type         DocumentType
+  version      Int
+  fileName     String
+  storageKey   String       @db.VarChar(512)
+  mimeType     String       @db.VarChar(150)
+  sizeBytes    Int
+  uploadedById String
+  createdAt    DateTime     @default(now())
+  deletedAt    DateTime?
+
+  project    Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  uploadedBy User    @relation(fields: [uploadedById], references: [id])
+
+  @@index([projectId, type])
+}
+
+model Notification {
+  id        String    @id @default(cuid())
+  userId    String
+  type      String    @db.VarChar(40)
+  title     String    @db.VarChar(200)
+  body      String?   @db.Text
+  projectId String?
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readAt, createdAt])
+  @@index([createdAt])
+}
+
+model Comment {
+  id        String     @id @default(cuid())
+  projectId String
+  stage     StageCode?
+  body      String     @db.Text
+  authorId  String
+  createdAt DateTime   @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  author  User    @relation(fields: [authorId], references: [id])
+
+  @@index([projectId, createdAt])
+}
+
+// ─── System ─────────────────────────────────────────────────────────
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  actorId   String?
+  entity    String   @db.VarChar(40)
+  entityId  String
+  action    String   @db.VarChar(60)
+  data      Json?
+  ip        String?  @db.VarChar(64)
+  createdAt DateTime @default(now())
+
+  actor User? @relation(fields: [actorId], references: [id])
+
+  @@index([entity, entityId])
+  @@index([createdAt])
+}
+
+/// Lease-based lock + last-run record for scheduled jobs (safe across multiple app instances).
+model JobLock {
+  name        String    @id @db.VarChar(60)
+  lockedUntil DateTime
+  lastRunAt   DateTime?
+  lastResult  Json?
+  lastError   String?   @db.Text
+}
+
+model StageSetting {
+  stage    StageCode @id
+  slaHours Int
+}
+
+model Counter {
+  key   String @id
+  value Int
+}

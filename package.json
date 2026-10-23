@@ -1,0 +1,22 @@
+{
+  "name": "udhay",
+  "private": true,
+  "packageManager": "pnpm@12.5.1",
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "pnpm --filter @udhay/shared build && pnpm --filter @udhay/api build && pnpm --filter @udhay/web build",
+    "start": "node apps/api/dist/main.js",
+    "typecheck": "turbo run typecheck",
+    "test": "pnpm --filter @udhay/api test",
+    "db:generate": "pnpm --filter @udhay/api prisma:generate",
+    "db:migrate": "pnpm --filter @udhay/api prisma:migrate",
+    "db:seed": "pnpm --filter @udhay/api prisma:seed"
+  },
+  "devDependencies": {
+    "turbo": "^2.5.6",
+    "typescript": "^5.9.2"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

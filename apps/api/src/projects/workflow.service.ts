@@ -1,0 +1,339 @@
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
+import type { Prisma } from '@prisma/client';
+import {
+  STAGE_BY_CODE,
+  findTransition,
+  stageIndex,
+  transitionsFrom,
+  type AvailableAction,
+  type DocumentType,
+  type StageCode,
+  type WorkflowAction,
+} from '@udhay/shared';
+import { AccessService } from '../access/access.service';
+import { AuditService } from '../audit/audit.module';
+import {
+  ProjectEvents,
+  type ProjectAssignedEvent,
+  type ProjectTransitionedEvent,
+} from '../common/events';
+import type { AuthUser } from '../common/types';
+import { PrismaService } from '../prisma/prisma.module';
+
+type Tx = Prisma.TransactionClient;
+
+const addHours = (d: Date, h: number) => new Date(d.getTime() + h * 3_600_000);
+
+/**
+ * The workflow engine. Every stage change goes through here so that permission checks,
+ * document gates, SLA dates, the timeline and the audit log stay consistent.
+ */
+@Injectable()
+export class WorkflowService {
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly access: AccessService,
+    private readonly audit: AuditService,
+    private readonly events: EventEmitter2,
+  ) {}
+
+  async transition(user: AuthUser, projectId: string, action: WorkflowAction, reason?: string) {
+    const { result, event } = await this.prisma.$transaction(async (tx) => {
+      const project = await this.loadForUpdate(tx, user, projectId);
+      if (project.status !== 'ACTIVE') throw new BadRequestException('Project is not active');
+
+      const def = findTransition(project.currentStage, action);
+      if (!def) {
+        throw new BadRequestException(
+          `"${action}" is not allowed at stage ${STAGE_BY_CODE[project.currentStage].label}`,
+        );
+      }
+      const open = project.stages[0] ?? null;
+      const ctx = { currentStage: project.currentStage, salesOwnerId: project.salesOwnerId, openStage: open };
+      if (!this.access.canPerformTransition(user, def, ctx)) {
+        throw new ForbiddenException('You cannot perform this action on this stage');
+      }
+      if (def.reasonRequired && !reason?.trim()) {
+        throw new BadRequestException('Please give a reason');
+      }
+      if (def.requiresDocuments?.length) {
+        const missing = await this.missingDocuments(tx, projectId, def.requiresDocuments, open);
+        if (missing.length) {
+          throw new BadRequestException({ message: 'Required documents are missing', missing });
+        }
+      }
+
+      const now = new Date();
+      const backwards = def.to !== null && stageIndex(def.to) < stageIndex(project.currentStage);
+      if (open) {
+        await tx.projectStage.update({
+          where: { id: open.id },
+          data: {
+            status: backwards ? 'RETURNED' : 'DONE',
+            completedAt: now,
+            assigneeId: open.assigneeId ?? user.id,
+            acceptedAt: open.acceptedAt ?? now,
+            acceptedById: open.acceptedById ?? user.id,
+          },
+        });
+      }
+
+      if (def.to) {
+        await this.openStage(tx, project.id, def.to, project.salesOwnerId, now);
+      } else {
+        await tx.project.update({
+          where: { id: project.id },
+          data: { status: def.outcome!, closedAt: now, stageDueAt: null },
+        });
+      }
+
+      await tx.stageTransition.create({
+        data: {
+          projectId,
+          fromStage: project.currentStage,
+          toStage: def.to,
+          action,
+          reason: reason?.trim() || null,
+          byUserId: user.id,
+        },
+      });
+      await this.audit.log(
+        {
+          actorId: user.id,
+          entity: 'project',
+          entityId: projectId,
+          action: `transition.${action}`,
+          data: { from: project.currentStage, to: def.to, outcome: def.outcome ?? null },
+        },
+        tx,
+      );
+      const event: ProjectTransitionedEvent = {
+        projectId,
+        actorId: user.id,
+        action,
+        from: project.currentStage,
+        to: def.to,
+        outcome: def.outcome ?? null,
+        backwards,
+        reason: reason?.trim() || null,
+      };
+      return { result: { id: projectId, stage: def.to, status: def.to ? 'ACTIVE' : def.outcome }, event };
+    });
+    this.events.emit(ProjectEvents.TRANSITIONED, event);
+    return result;
+  }
+
+  /** Receiving team acknowledges the handoff; the acceptor becomes the assignee if none is set. */
+  async accept(user: AuthUser, projectId: string) {
+    return this.prisma.$transaction(async (tx) => {
+      const project = await this.loadForUpdate(tx, user, projectId);
+      const open = project.stages[0];
+      if (!open || project.status !== 'ACTIVE') throw new BadRequestException('Nothing to accept');
+      if (open.acceptedAt) throw new BadRequestException('Already accepted');
+      const ctx = { currentStage: project.currentStage, salesOwnerId: project.salesOwnerId, openStage: open };
+      if (!this.access.canAccept(user, ctx)) throw new ForbiddenException('This stage belongs to another team');
+
+      const now = new Date();
+      await tx.projectStage.update({
+        where: { id: open.id },
+        data: { acceptedAt: now, acceptedById: user.id, assigneeId: open.assigneeId ?? user.id },
+      });
+      await this.record(tx, user, project.id, project.currentStage, 'ACCEPT_HANDOFF');
+      return { ok: true };
+    });
+  }
+
+  async assign(user: AuthUser, projectId: string, assigneeId: string) {
+    const scope = this.access.require(user, 'stage.assign');
+    const event = await this.prisma.$transaction(async (tx): Promise<ProjectAssignedEvent> => {
+      const project = await this.loadForUpdate(tx, user, projectId);
+      const open = project.stages[0];
+      if (!open || project.status !== 'ACTIVE') throw new BadRequestException('No open stage to assign');
+
+      const stageTeam = STAGE_BY_CODE[project.currentStage].team;
+      if (scope !== 'ALL' && user.team !== stageTeam) {
+        throw new ForbiddenException('You can only assign work in your own team');
+      }
+      const assignee = await tx.user.findFirst({
+        where: { id: assigneeId, isActive: true, deletedAt: null },
+        include: { team: true },
+      });
+      if (!assignee) throw new BadRequestException('User not found');
+      if (stageTeam !== 'MANAGEMENT' && assignee.team?.code !== stageTeam) {
+        throw new BadRequestException(`Assignee must belong to the ${stageTeam} team`);
+      }
+
+      await tx.projectStage.update({
+        where: { id: open.id },
+        data: { assigneeId, acceptedAt: null, acceptedById: null },
+      });
+      await this.record(tx, user, project.id, project.currentStage, 'ASSIGN', `Assigned to ${assignee.name}`);
+      return { projectId: project.id, actorId: user.id, assigneeId, stage: project.currentStage };
+    });
+    this.events.emit(ProjectEvents.ASSIGNED, event);
+    return { ok: true };
+  }
+
+  async setHold(user: AuthUser, projectId: string, hold: boolean, reason?: string) {
+    this.access.require(user, 'project.manage');
+    return this.prisma.$transaction(async (tx) => {
+      const project = await this.loadForUpdate(tx, user, projectId);
+      if (hold) {
+        if (project.status !== 'ACTIVE') throw new BadRequestException('Only active projects can be put on hold');
+        if (!reason?.trim()) throw new BadRequestException('Please give a reason');
+        await tx.project.update({ where: { id: projectId }, data: { status: 'ON_HOLD', holdReason: reason.trim() } });
+        await this.record(tx, user, projectId, project.currentStage, 'HOLD', reason);
+      } else {
+        if (project.status !== 'ON_HOLD') throw new BadRequestException('Project is not on hold');
+        // The SLA clock restarts for the current stage when work resumes.
+        const dueAt = addHours(new Date(), await this.slaHours(tx, project.currentStage));
+        await tx.project.update({ where: { id: projectId }, data: { status: 'ACTIVE', holdReason: null, stageDueAt: dueAt } });
+        if (project.stages[0]) {
+          await tx.projectStage.update({ where: { id: project.stages[0].id }, data: { dueAt, slaAlertLevel: 0 } });
+        }
+        await this.record(tx, user, projectId, project.currentStage, 'RESUME');
+      }
+      return { ok: true };
+    });
+  }
+
+  async cancel(user: AuthUser, projectId: string, reason: string) {
+    this.access.require(user, 'project.manage');
+    if (!reason?.trim()) throw new BadRequestException('Please give a reason');
+    return this.prisma.$transaction(async (tx) => {
+      const project = await this.loadForUpdate(tx, user, projectId);
+      if (!['ACTIVE', 'ON_HOLD'].includes(project.status)) throw new BadRequestException('Project is already closed');
+      await tx.project.update({
+        where: { id: projectId },
+        data: { status: 'CANCELLED', closedAt: new Date(), stageDueAt: null },
+      });
+      await this.record(tx, user, projectId, project.currentStage, 'CANCEL', reason);
+      return { ok: true };
+    });
+  }
+
+  /** Actions the user can take right now, with documents still missing for each. */
+  availableActions(
+    user: AuthUser,
+    project: {
+      status: string;
+      currentStage: StageCode;
+      salesOwnerId: string;
+      documents: { type: DocumentType; createdAt: Date }[];
+    },
+    open: { assigneeId: string | null; cycle: number; startedAt: Date } | null,
+  ): AvailableAction[] {
+    if (project.status !== 'ACTIVE') return [];
+    const ctx = { currentStage: project.currentStage, salesOwnerId: project.salesOwnerId, openStage: open };
+    return transitionsFrom(project.currentStage)
+      .filter((t) => this.access.canPerformTransition(user, t, ctx))
+      .map((t) => ({
+        action: t.action,
+        label: t.label,
+        tone: t.tone,
+        reasonRequired: !!t.reasonRequired,
+        missingDocuments: (t.requiresDocuments ?? []).filter(
+          (type) =>
+            !project.documents.some(
+              (d) => d.type === type && (!open || open.cycle === 1 || d.createdAt >= open.startedAt),
+            ),
+        ),
+      }));
+  }
+
+  /** Creates the first stage of a new project. */
+  async startProject(tx: Tx, projectId: string, salesOwnerId: string, now: Date) {
+    await this.openStage(tx, projectId, 'LEAD', salesOwnerId, now, true);
+  }
+
+  // ── internals ─────────────────────────────────────────────────────
+
+  private async loadForUpdate(tx: Tx, user: AuthUser, projectId: string) {
+    // Row lock so two people can't move the same project at once.
+    await tx.$queryRaw`SELECT id FROM Project WHERE id = ${projectId} FOR UPDATE`;
+    const project = await tx.project.findFirst({
+      where: { AND: [this.access.projectWhere(user), { id: projectId }] },
+      include: { stages: { where: { status: 'OPEN' }, orderBy: { startedAt: 'desc' }, take: 1 } },
+    });
+    if (!project) throw new NotFoundException('Project not found');
+    return project;
+  }
+
+  private async openStage(
+    tx: Tx,
+    projectId: string,
+    stage: StageCode,
+    salesOwnerId: string,
+    now: Date,
+    autoAccept = false,
+  ) {
+    const def = STAGE_BY_CODE[stage];
+    const previous = await tx.projectStage.findFirst({
+      where: { projectId, stage },
+      orderBy: { startedAt: 'desc' },
+    });
+    // Revisions go back to whoever handled the stage last; Sales stages go to the sales owner.
+    const assigneeId = previous?.assigneeId ?? (def.team === 'SALES' ? salesOwnerId : null);
+    const dueAt = addHours(now, await this.slaHours(tx, stage));
+
+    await tx.projectStage.create({
+      data: {
+        projectId,
+        stage,
+        team: def.team,
+        cycle: previous ? previous.cycle + 1 : 1,
+        status: 'OPEN',
+        assigneeId,
+        startedAt: now,
+        dueAt,
+        acceptedAt: autoAccept ? now : null,
+        acceptedById: autoAccept ? assigneeId : null,
+      },
+    });
+    await tx.project.update({
+      where: { id: projectId },
+      data: { currentStage: stage, currentTeam: def.team, stageDueAt: dueAt },
+    });
+  }
+
+  private async slaHours(tx: Tx, stage: StageCode) {
+    const setting = await tx.stageSetting.findUnique({ where: { stage } });
+    return setting?.slaHours ?? STAGE_BY_CODE[stage].slaHours;
+  }
+
+  private async missingDocuments(
+    tx: Tx,
+    projectId: string,
+    required: DocumentType[],
+    open: { cycle: number; startedAt: Date } | null,
+  ) {
+    // On a revision cycle, a fresh document must be uploaded after the stage reopened.
+    const docs = await tx.document.findMany({
+      where: {
+        projectId,
+        deletedAt: null,
+        type: { in: required },
+        ...(open && open.cycle > 1 ? { createdAt: { gte: open.startedAt } } : {}),
+      },
+      select: { type: true },
+    });
+    const have = new Set(docs.map((d) => d.type));
+    return required.filter((t) => !have.has(t));
+  }
+
+  private async record(tx: Tx, user: AuthUser, projectId: string, stage: StageCode, action: string, reason?: string) {
+    await tx.stageTransition.create({
+      data: { projectId, fromStage: stage, toStage: stage, action, reason: reason?.trim() || null, byUserId: user.id },
+    });
+    await this.audit.log(
+      { actorId: user.id, entity: 'project', entityId: projectId, action: action.toLowerCase(), data: reason ? { reason } : undefined },
+      tx,
+    );
+  }
+}
