@@ -15,7 +15,7 @@ const ragDot: Record<Rag, string> = {
 };
 
 export function RagDot({ rag, className }: { rag: Rag; className?: string }) {
-  return <span className={cn('inline-block size-2 shrink-0 rounded-full', ragDot[rag], className)} />;
+  return <span className={cn('inline-block size-2 shrink-0 rounded-none', ragDot[rag], className)} />;
 }
 
 export function DueBadge({ startedAt, dueAt }: { startedAt: string | null; dueAt: string | null }) {

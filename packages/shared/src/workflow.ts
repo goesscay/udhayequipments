@@ -69,7 +69,8 @@ export const TRANSITIONS: readonly TransitionDef[] = [
 
   { from: 'INSTALLATION', action: 'COMPLETE', label: 'Installation complete', to: 'HANDOVER', permission: act, teamBound: true, tone: 'primary' },
 
-  { from: 'HANDOVER', action: 'HANDOVER', label: 'Handed over, start service', to: 'SERVICE', permission: act, teamBound: true, requiresDocuments: ['HANDOVER_CERT'], tone: 'primary' },
+  // Needs a recorded handover (customer signature + warranty); checked by the API's gates.
+  { from: 'HANDOVER', action: 'HANDOVER', label: 'Handed over, start service', to: 'SERVICE', permission: act, teamBound: true, tone: 'primary' },
 
   { from: 'SERVICE', action: 'CLOSE', label: 'Close project', to: null, outcome: 'COMPLETED', permission: act, teamBound: true, tone: 'neutral' },
 ];

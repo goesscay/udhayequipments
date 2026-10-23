@@ -25,7 +25,7 @@ export function StagePipelineChart({ data }: { data: DashboardSummary['stageCoun
           <YAxis type="category" dataKey="name" width={78} tick={{ fontSize: 12, fill: '#1F2328' }} axisLine={false} tickLine={false} />
           <Tooltip
             cursor={{ fill: '#F7F0E3' }}
-            contentStyle={{ borderRadius: 10, border: '1px solid #ECEAE6', fontSize: 12 }}
+            contentStyle={{ borderRadius: 0, border: '1px solid #ECEAE6', fontSize: 12 }}
             labelFormatter={(_, p) => p?.[0]?.payload?.label ?? ''}
           />
           <Bar
@@ -33,7 +33,7 @@ export function StagePipelineChart({ data }: { data: DashboardSummary['stageCoun
             name="On track"
             stackId="a"
             fill="#B8862B"
-            radius={[0, 0, 0, 0]}
+            radius={0}
             className="cursor-pointer"
             onClick={openStage}
           />
@@ -42,7 +42,7 @@ export function StagePipelineChart({ data }: { data: DashboardSummary['stageCoun
             name="Overdue"
             stackId="a"
             fill="#DC2626"
-            radius={[0, 4, 4, 0]}
+            radius={0}
             className="cursor-pointer"
             onClick={openStage}
           />

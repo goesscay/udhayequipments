@@ -22,6 +22,11 @@ export class RecipientsService {
     return this.withPermission('stage.assign', { team, scopes: ['TEAM'] });
   }
 
+  /** Members of a team holding a permission (e.g. the Service team for new tickets). */
+  teamWith(team: TeamCode, key: PermissionKey): Promise<string[]> {
+    return this.withPermission(key, { team });
+  }
+
   /** Admin and Super Admin: anyone who can manage every project. */
   admins(): Promise<string[]> {
     return this.withPermission('project.manage', { scopes: ['ALL'] });

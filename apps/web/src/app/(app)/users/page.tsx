@@ -64,7 +64,7 @@ export default function UsersPage() {
         <Card className="divide-y">
           {users.map((u) => (
             <div key={u.id} className="flex items-center gap-3 px-4 py-3">
-              <div className="grid size-9 shrink-0 place-items-center rounded-full bg-surface text-[12px] font-semibold text-muted ring-1 ring-line">
+              <div className="grid size-9 shrink-0 place-items-center rounded-none bg-surface text-[12px] font-semibold text-muted ring-1 ring-line">
                 {u.name.split(' ').map((s) => s[0]).slice(0, 2).join('').toUpperCase()}
               </div>
               <div className="min-w-0 flex-1">

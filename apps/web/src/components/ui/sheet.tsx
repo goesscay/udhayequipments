@@ -33,7 +33,7 @@ export function Sheet({
             <X className="size-4" />
           </button>
         </div>
-        <div className="p-4">{children}</div>
+        <div className="max-h-[78dvh] overflow-y-auto p-4">{children}</div>
       </div>
     </div>
   );

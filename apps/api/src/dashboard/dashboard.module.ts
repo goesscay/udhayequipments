@@ -1,7 +1,7 @@
 import { Controller, Get, Injectable, Module } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import type { Prisma } from '@prisma/client';
-import { STAGES, TEAMS, type DashboardSummary } from '@udhay/shared';
+import { OPEN_TICKET_STATUSES, STAGES, TEAMS, type DashboardSummary } from '@udhay/shared';
 import { AccessService } from '../access/access.service';
 import { CurrentUser, RequirePermissions } from '../common/decorators';
 import type { AuthUser } from '../common/types';
@@ -25,6 +25,8 @@ class DashboardService {
     const overdue: Prisma.ProjectWhereInput = { AND: [scoped, { status: 'ACTIVE', stageDueAt: { lt: now } }] };
     const count = (extra: Prisma.ProjectWhereInput) =>
       this.prisma.project.count({ where: { AND: [scoped, extra] } });
+    const canSeeTickets = !!this.access.scopeOf(user, 'service.view');
+    const weekAhead = new Date(now.getTime() + 7 * 86_400_000);
 
     const [
       activeProjects,
@@ -43,6 +45,9 @@ class DashboardService {
       wonThisMonth,
       lostThisMonth,
       activity,
+      outstanding,
+      openTickets,
+      dispatchesNext7Days,
     ] = await Promise.all([
       this.prisma.project.count({ where: active }),
       this.prisma.project.count({ where: overdue }),
@@ -65,6 +70,15 @@ class DashboardService {
         take: 15,
         include: { project: { select: { code: true } }, byUser: { select: { name: true } } },
       }),
+      showPrice
+        ? this.prisma.paymentMilestone.aggregate({ where: { status: 'PENDING', project: active }, _sum: { amount: true } })
+        : null,
+      canSeeTickets
+        ? this.prisma.serviceTicket.count({ where: { status: { in: OPEN_TICKET_STATUSES }, project: scoped } })
+        : null,
+      this.prisma.dispatchTrip.count({
+        where: { status: { in: ['PLANNED', 'IN_TRANSIT'] }, plannedDate: { lt: weekAhead }, project: active },
+      }),
     ]);
 
     const stageCount = new Map(byStage.map((r) => [r.currentStage, r._count._all]));
@@ -84,6 +98,9 @@ class DashboardService {
         pendingAcceptance,
         wonThisMonth,
         lostThisMonth,
+        outstandingPayments: outstanding ? Number(outstanding._sum.amount ?? 0) : null,
+        openTickets,
+        dispatchesNext7Days,
       },
       stageCounts: STAGES.map((s) => ({
         stage: s.code,

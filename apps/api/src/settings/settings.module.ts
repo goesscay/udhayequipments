@@ -1,12 +1,23 @@
-import { BadRequestException, Body, Controller, Get, Injectable, Module, Put } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, Global, Injectable, Module, Put } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import { STAGE_CODES, STAGES, type StageCode } from '@udhay/shared';
+import { PRIORITIES, STAGE_CODES, STAGES, type AppRules, type Priority, type StageCode } from '@udhay/shared';
 import { Type } from 'class-transformer';
-import { ArrayMaxSize, IsArray, IsIn, IsInt, Max, Min, ValidateNested } from 'class-validator';
+import {
+  ArrayMaxSize,
+  IsArray,
+  IsBoolean,
+  IsIn,
+  IsInt,
+  IsOptional,
+  Max,
+  Min,
+  ValidateNested,
+} from 'class-validator';
 import { AuditService } from '../audit/audit.module';
 import { CurrentUser, RequirePermissions } from '../common/decorators';
 import type { AuthUser } from '../common/types';
 import { PrismaService } from '../prisma/prisma.module';
+import { AppRulesService } from './app-rules.service';
 
 class StageSlaDto {
   @IsIn(STAGE_CODES) stage: StageCode;
@@ -20,6 +31,20 @@ class UpdateStageSlasDto {
   @ValidateNested({ each: true })
   @Type(() => StageSlaDto)
   stages: StageSlaDto[];
+}
+
+class TicketSlaDto implements Partial<Record<Priority, number>> {
+  @IsOptional() @IsInt() @Min(1) @Max(2_000) URGENT?: number;
+  @IsOptional() @IsInt() @Min(1) @Max(2_000) HIGH?: number;
+  @IsOptional() @IsInt() @Min(1) @Max(2_000) NORMAL?: number;
+  @IsOptional() @IsInt() @Min(1) @Max(2_000) LOW?: number;
+}
+
+class UpdateRulesDto {
+  @IsOptional() @IsBoolean() advanceBeforeProduction?: boolean;
+  @IsOptional() @IsBoolean() preDispatchBeforeDispatch?: boolean;
+  @IsOptional() @IsInt() @Min(0) @Max(120) defaultWarrantyMonths?: number;
+  @IsOptional() @ValidateNested() @Type(() => TicketSlaDto) ticketSlaHours?: TicketSlaDto;
 }
 
 @Injectable()
@@ -75,7 +100,28 @@ class SettingsService {
 @ApiBearerAuth()
 @Controller('settings')
 class SettingsController {
-  constructor(private readonly settings: SettingsService) {}
+  constructor(
+    private readonly settings: SettingsService,
+    private readonly rules: AppRulesService,
+  ) {}
+
+  @Get('rules')
+  @RequirePermissions('settings.manage')
+  getRules() {
+    return this.rules.get();
+  }
+
+  @Put('rules')
+  @RequirePermissions('settings.manage')
+  updateRules(@CurrentUser() user: AuthUser, @Body() dto: UpdateRulesDto) {
+    const patch: Partial<AppRules> = { ...dto, ticketSlaHours: undefined };
+    if (dto.ticketSlaHours) {
+      patch.ticketSlaHours = Object.fromEntries(
+        PRIORITIES.filter((p) => dto.ticketSlaHours![p] != null).map((p) => [p, dto.ticketSlaHours![p]!]),
+      ) as AppRules['ticketSlaHours'];
+    }
+    return this.rules.update(user, patch);
+  }
 
   @Get('stage-slas')
   @RequirePermissions('settings.manage')
@@ -90,5 +136,6 @@ class SettingsController {
   }
 }
 
-@Module({ controllers: [SettingsController], providers: [SettingsService] })
+@Global()
+@Module({ controllers: [SettingsController], providers: [SettingsService, AppRulesService], exports: [AppRulesService] })
 export class SettingsModule {}

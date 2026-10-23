@@ -7,6 +7,7 @@ import {
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import type { Prisma } from '@prisma/client';
 import {
+  DOCUMENT_LABELS,
   STAGE_BY_CODE,
   findTransition,
   stageIndex,
@@ -20,11 +21,13 @@ import { AccessService } from '../access/access.service';
 import { AuditService } from '../audit/audit.module';
 import {
   ProjectEvents,
+  type ProjectAcceptedEvent,
   type ProjectAssignedEvent,
   type ProjectTransitionedEvent,
 } from '../common/events';
 import type { AuthUser } from '../common/types';
 import { PrismaService } from '../prisma/prisma.module';
+import { GatesService } from './gates.service';
 
 type Tx = Prisma.TransactionClient;
 
@@ -41,6 +44,7 @@ export class WorkflowService {
     private readonly access: AccessService,
     private readonly audit: AuditService,
     private readonly events: EventEmitter2,
+    private readonly gates: GatesService,
   ) {}
 
   async transition(user: AuthUser, projectId: string, action: WorkflowAction, reason?: string) {
@@ -62,11 +66,14 @@ export class WorkflowService {
       if (def.reasonRequired && !reason?.trim()) {
         throw new BadRequestException('Please give a reason');
       }
-      if (def.requiresDocuments?.length) {
-        const missing = await this.missingDocuments(tx, projectId, def.requiresDocuments, open);
-        if (missing.length) {
-          throw new BadRequestException({ message: 'Required documents are missing', missing });
-        }
+      // Report every unmet condition at once so people fix them in one go.
+      const missing = def.requiresDocuments?.length
+        ? await this.missingDocuments(tx, projectId, def.requiresDocuments, open)
+        : [];
+      const blockers = await this.gates.blockers(tx, projectId, def);
+      if (missing.length || blockers.length) {
+        const parts = [...blockers, ...(missing.length ? [`Upload: ${missing.map((m) => DOCUMENT_LABELS[m]).join(', ')}`] : [])];
+        throw new BadRequestException({ message: parts.join('; '), missing, blockers });
       }
 
       const now = new Date();
@@ -131,7 +138,7 @@ export class WorkflowService {
 
   /** Receiving team acknowledges the handoff; the acceptor becomes the assignee if none is set. */
   async accept(user: AuthUser, projectId: string) {
-    return this.prisma.$transaction(async (tx) => {
+    const event = await this.prisma.$transaction(async (tx): Promise<ProjectAcceptedEvent> => {
       const project = await this.loadForUpdate(tx, user, projectId);
       const open = project.stages[0];
       if (!open || project.status !== 'ACTIVE') throw new BadRequestException('Nothing to accept');
@@ -145,8 +152,10 @@ export class WorkflowService {
         data: { acceptedAt: now, acceptedById: user.id, assigneeId: open.assigneeId ?? user.id },
       });
       await this.record(tx, user, project.id, project.currentStage, 'ACCEPT_HANDOFF');
-      return { ok: true };
+      return { projectId: project.id, actorId: user.id, stage: project.currentStage };
     });
+    this.events.emit(ProjectEvents.ACCEPTED, event);
+    return { ok: true };
   }
 
   async assign(user: AuthUser, projectId: string, assigneeId: string) {
@@ -218,22 +227,23 @@ export class WorkflowService {
     });
   }
 
-  /** Actions the user can take right now, with documents still missing for each. */
-  availableActions(
+  /** Actions the user can take right now, with missing documents and unmet rules for each. */
+  async availableActions(
     user: AuthUser,
     project: {
+      id: string;
       status: string;
       currentStage: StageCode;
       salesOwnerId: string;
       documents: { type: DocumentType; createdAt: Date }[];
     },
     open: { assigneeId: string | null; cycle: number; startedAt: Date } | null,
-  ): AvailableAction[] {
+  ): Promise<AvailableAction[]> {
     if (project.status !== 'ACTIVE') return [];
     const ctx = { currentStage: project.currentStage, salesOwnerId: project.salesOwnerId, openStage: open };
-    return transitionsFrom(project.currentStage)
-      .filter((t) => this.access.canPerformTransition(user, t, ctx))
-      .map((t) => ({
+    const allowed = transitionsFrom(project.currentStage).filter((t) => this.access.canPerformTransition(user, t, ctx));
+    return Promise.all(
+      allowed.map(async (t) => ({
         action: t.action,
         label: t.label,
         tone: t.tone,
@@ -244,7 +254,9 @@ export class WorkflowService {
               (d) => d.type === type && (!open || open.cycle === 1 || d.createdAt >= open.startedAt),
             ),
         ),
-      }));
+        blockers: await this.gates.blockers(this.prisma, project.id, t),
+      })),
+    );
   }
 
   /** Creates the first stage of a new project. */

@@ -12,6 +12,7 @@ export const DOCUMENT_TYPES = [
   'POD',
   'INSTALLATION_PHOTO',
   'HANDOVER_CERT',
+  'SERVICE_PHOTO',
   'OTHER',
 ] as const;
 
@@ -31,6 +32,7 @@ export const DOCUMENT_LABELS: Record<DocumentType, string> = {
   POD: 'Proof of delivery',
   INSTALLATION_PHOTO: 'Installation photo',
   HANDOVER_CERT: 'Handover certificate',
+  SERVICE_PHOTO: 'Service photo',
   OTHER: 'Other',
 };
 

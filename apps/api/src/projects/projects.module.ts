@@ -13,6 +13,7 @@ import {
   UpdateProjectDto,
 } from './projects.dto';
 import { ProjectsService } from './projects.service';
+import { GatesService } from './gates.service';
 import { WorkflowService } from './workflow.service';
 
 @ApiTags('projects')
@@ -104,7 +105,7 @@ class ProjectsController {
 @Module({
   imports: [CustomersModule],
   controllers: [ProjectsController],
-  providers: [ProjectsService, WorkflowService],
-  exports: [WorkflowService],
+  providers: [ProjectsService, WorkflowService, GatesService],
+  exports: [WorkflowService, GatesService],
 })
 export class ProjectsModule {}

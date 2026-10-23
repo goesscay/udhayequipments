@@ -1,8 +1,12 @@
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import type { Prisma } from '@prisma/client';
 import type { Paginated, ProjectDetail, ProjectListItem, QueueItem } from '@udhay/shared';
 import { AccessService } from '../access/access.service';
 import { AuditService } from '../audit/audit.module';
+import { nextCode } from '../common/counter';
+import { ProjectEvents, type ProjectMentionedEvent } from '../common/events';
+import { extractMentions, plainMentions } from '../common/mentions';
 import type { AuthUser } from '../common/types';
 import { CustomersService } from '../customers/customers.module';
 import { PrismaService } from '../prisma/prisma.module';
@@ -18,6 +22,7 @@ export class ProjectsService {
     private readonly audit: AuditService,
     private readonly workflow: WorkflowService,
     private readonly customers: CustomersService,
+    private readonly events: EventEmitter2,
   ) {}
 
   async list(user: AuthUser, q: ListProjectsQuery): Promise<Paginated<ProjectListItem>> {
@@ -165,7 +170,7 @@ export class ProjectsService {
         author: c.author,
         createdAt: c.createdAt.toISOString(),
       })),
-      availableActions: this.workflow.availableActions(user, p, openRow),
+      availableActions: await this.workflow.availableActions(user, p, openRow),
       canAccept: p.status === 'ACTIVE' && !!openRow && !openRow.acceptedAt && this.access.canAccept(user, ctx),
       canAssign: p.status === 'ACTIVE' && !!this.access.scopeOf(user, 'stage.assign'),
       canManage: !!this.access.scopeOf(user, 'project.manage'),
@@ -196,11 +201,7 @@ export class ProjectsService {
           )
         ).id;
 
-      const year = new Date().getFullYear();
-      const key = `project-${year}`;
-      await tx.$executeRaw`INSERT INTO Counter (\`key\`, value) VALUES (${key}, 1) ON DUPLICATE KEY UPDATE value = value + 1`;
-      const counter = await tx.counter.findUniqueOrThrow({ where: { key } });
-      const code = `UDH-${year}-${String(counter.value).padStart(4, '0')}`;
+      const code = await nextCode(tx, 'UDH', 'project');
 
       // Sales members own what they create; admins may assign another sales owner.
       const salesOwnerId = scope === 'ALL' && dto.salesOwnerId ? dto.salesOwnerId : user.id;
@@ -251,10 +252,40 @@ export class ProjectsService {
 
   async addComment(user: AuthUser, id: string, body: string) {
     const project = await this.findVisible(user, id, 'project.view');
-    return this.prisma.comment.create({
-      data: { projectId: id, stage: project.currentStage, body: body.trim(), authorId: user.id },
+    const text = body.trim();
+    const mentioned = await this.mentionableIds(id, extractMentions(text), user.id);
+    const comment = await this.prisma.comment.create({
+      data: {
+        projectId: id,
+        stage: project.currentStage,
+        body: text,
+        mentions: mentioned.length ? mentioned : undefined,
+        authorId: user.id,
+      },
       include: { author: { select: { id: true, name: true } } },
     });
+    if (mentioned.length) {
+      const event: ProjectMentionedEvent = {
+        projectId: id,
+        actorId: user.id,
+        userIds: mentioned,
+        excerpt: plainMentions(text).slice(0, 160),
+      };
+      this.events.emit(ProjectEvents.MENTIONED, event);
+    }
+    return comment;
+  }
+
+  /** Mentioned users who are active and can actually open this project. */
+  private async mentionableIds(projectId: string, ids: string[], authorId: string) {
+    const out: string[] = [];
+    for (const uid of ids.filter((x) => x !== authorId).slice(0, 20)) {
+      const u = await this.access.loadAuthUser(uid);
+      if (!u || !u.permissions['project.view']) continue;
+      const visible = await this.prisma.project.count({ where: { AND: [this.access.projectWhere(u), { id: projectId }] } });
+      if (visible) out.push(uid);
+    }
+    return out;
   }
 
   private async findVisible(user: AuthUser, id: string, permission: 'project.view' | 'project.update') {

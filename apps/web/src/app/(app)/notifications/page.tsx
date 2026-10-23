@@ -6,10 +6,14 @@ import {
   AlarmClock,
   AlertTriangle,
   ArrowRightLeft,
+  AtSign,
   CheckCircle2,
+  Handshake,
+  IndianRupee,
   Siren,
   Undo2,
   UserCheck,
+  Wrench,
   type LucideIcon,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
@@ -29,6 +33,12 @@ const ICONS: Record<NotificationType, { icon: LucideIcon; tone: string }> = {
   SLA_DUE_SOON: { icon: AlarmClock, tone: 'text-warn bg-warn/10' },
   SLA_OVERDUE: { icon: AlertTriangle, tone: 'text-bad bg-bad/10' },
   SLA_ESCALATED: { icon: Siren, tone: 'text-bad bg-bad/10' },
+  MENTION: { icon: AtSign, tone: 'text-brand bg-brand-50' },
+  HANDOFF_ACCEPTED: { icon: Handshake, tone: 'text-ok bg-ok/10' },
+  PAYMENT_RECEIVED: { icon: IndianRupee, tone: 'text-ok bg-ok/10' },
+  TICKET_CREATED: { icon: Wrench, tone: 'text-info bg-info/10' },
+  TICKET_ASSIGNED: { icon: Wrench, tone: 'text-brand bg-brand-50' },
+  TICKET_OVERDUE: { icon: AlertTriangle, tone: 'text-bad bg-bad/10' },
 };
 
 export default function NotificationsPage() {
@@ -110,13 +120,13 @@ export default function NotificationsPage() {
                 onClick={() => open(n)}
                 className={cn('flex w-full gap-3 px-4 py-3 text-left hover:bg-surface', !n.readAt && 'bg-brand-50/40')}
               >
-                <span className={cn('mt-0.5 grid size-8 shrink-0 place-items-center rounded-full', tone)}>
+                <span className={cn('mt-0.5 grid size-8 shrink-0 place-items-center rounded-none', tone)}>
                   <Icon className="size-4" />
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="flex items-start justify-between gap-2">
                     <span className={cn('text-[13px] leading-snug', !n.readAt ? 'font-semibold' : 'font-medium')}>{n.title}</span>
-                    {!n.readAt && <span className="mt-1.5 size-2 shrink-0 rounded-full bg-brand" aria-label="Unread" />}
+                    {!n.readAt && <span className="mt-1.5 size-2 shrink-0 rounded-none bg-brand" aria-label="Unread" />}
                   </span>
                   {n.body && <span className="mt-0.5 block whitespace-pre-line text-[12px] text-muted">{n.body}</span>}
                   <span className="mt-1 block text-[11px] text-muted" title={formatDate(n.createdAt, true)}>

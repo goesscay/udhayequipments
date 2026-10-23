@@ -23,7 +23,7 @@ export function StageStepper({ project }: { project: ProjectDetail }) {
             )}
             <span
               className={cn(
-                'relative z-10 grid size-6 shrink-0 place-items-center rounded-full border text-[10px] font-semibold',
+                'relative z-10 grid size-6 shrink-0 place-items-center rounded-none border text-[10px] font-semibold',
                 done && 'border-brand bg-brand text-white',
                 isCurrent && !overdue && 'border-brand bg-white text-brand ring-4 ring-brand-50',
                 isCurrent && overdue && 'border-bad bg-white text-bad ring-4 ring-bad/10',

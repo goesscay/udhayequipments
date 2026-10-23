@@ -51,6 +51,26 @@ Sign in with the seed credentials from `apps/api/.env` (`SEED_SUPERADMIN_EMAIL` 
 - Default roles: Super Admin, Admin, Overall Head (CAD approval), Team Head, Team Member and Viewer. Super Admin can edit roles via `PUT /api/roles/:id/permissions`.
 - Prices and commercial documents (quotation, BOQ) are hidden from roles without `price.view`.
 
+### Operations (Phase 2)
+Each project gets tabs that appear as it reaches the relevant stage.
+
+| Tab | Who works in it | What it does | Rule it enforces |
+|---|---|---|---|
+| **Payments** | Admin (`payment.manage`); visible with `price.view` | Advance / before-dispatch / final milestones, receipts (mode + reference), waive, undo | Optional (Settings → Rules): no release to Production without the advance; no dispatch without the before-dispatch payment |
+| **Production** | Production team (`production.manage`) | One job card per equipment item, % progress, QC pass/fail; paste a BOQ list (`3 x Sink unit`, `Sink unit - 3 nos`) | "Production & QC done" needs every item Done and QC-passed |
+| **Dispatch** | Dispatch team (`dispatch.manage`) | Trips with vehicle, driver, DC / e-way bill, delivery with on-screen signature or photo of the signed challan; Dispatch board across projects | "Delivered to site" needs every trip delivered |
+| **Site & handover** | Project team (`installation.manage`) | Snag list; handover with customer signature, warranty months, training; printable certificate (`/print/handover/:id`) | Installation complete needs no open snags; handover needs a recorded handover |
+| **Service** | Service team (`service.manage`) | Tickets (SRV-YYYY-NNNN) with warranty check, priority-based due time, visits, resolution, customer rating | Overdue tickets alert the technician and Service head |
+
+- **Team-owned modules:** a permission with Team/Own scope works only for members of the owning team, while All scope (Admin) works everywhere.
+- **Reports** (`report.view`): stage times (average, median, % late), quotation win rate, lost reasons, monthly new/won projects, value won vs collected, service stats, and CSV exports (Excel-ready, formula-safe).
+- **@mentions** in comments notify colleagues who can see the project.
+- **Phone photos** are shrunk in the browser before upload (about 1600 px JPEG) to save server disk.
+
+### Testing
+- `pnpm test`: unit tests for the pure logic (SLA levels, item parsing, warranty dates, report maths, CSV, mentions).
+- `apps/api/test/e2e-flow.mjs`: an end-to-end upgrade test. Phase 1 runs against the previous release to create users and a project at Head Approval. Phase 2 runs against the new release on the same database: it checks the migration and new permissions, then walks payments → production → dispatch → snags → handover → service, including every blocked step and permission denial. **Only ever point it at a throwaway database**; it refuses the production domain.
+
 ### Notifications (in-app only)
 - `WorkflowService` emits `project.transitioned` / `project.assigned` events after the database transaction commits. `WorkflowNotifier` turns them into notifications:
   - **Handoff:** goes to the stage assignee, or to the whole receiving team if nobody is assigned. CAD approvals go to everyone with `cad.approve`.
@@ -86,5 +106,5 @@ curl -fsS -X POST -H "X-Jobs-Secret: $JOBS_SECRET" https://<api-domain>/api/jobs
 
 ## Not yet built (next steps from PLAN.md)
 - Offline mode and push notifications. The app can be installed on phones (manifest + icons) but needs a connection.
-- Phase 2: payments, production job cards, dispatch, service tickets.
-- More tests (SLA level rules are covered: `pnpm --filter @udhay/api test`).
+- Phase 3: customer tracking/approval link, quotation & BOQ builder with an equipment catalogue, Tally/Zoho integration, AMC renewals.
+- Web UI tests (the API is covered by unit tests and the end-to-end upgrade test).

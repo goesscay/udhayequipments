@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { PageHeader } from '@/components/app-shell';
 import { JobsStatus } from '@/components/settings/jobs-status';
 import { RolesEditor } from '@/components/settings/roles-editor';
+import { RulesEditor } from '@/components/settings/rules-editor';
 import { StageTargets } from '@/components/settings/stage-targets';
 import { Card, EmptyState } from '@/components/ui/card';
 import { useAuth } from '@/lib/auth';
@@ -12,6 +13,7 @@ import { cn } from '@/lib/utils';
 const TABS = [
   { id: 'roles', label: 'Roles & permissions', permission: 'role.manage' },
   { id: 'stages', label: 'Stage targets', permission: 'settings.manage' },
+  { id: 'rules', label: 'Rules', permission: 'settings.manage' },
   { id: 'jobs', label: 'Background jobs', permission: 'settings.manage' },
 ] as const;
 
@@ -31,7 +33,7 @@ export default function SettingsPage() {
   return (
     <>
       <PageHeader title="Settings" subtitle="Who can do what, and how long each stage should take" />
-      <div className="-mx-4 mb-4 flex gap-1 overflow-x-auto border-b px-4 md:mx-0 md:px-0">
+      <div className="-mx-4 mb-4 flex gap-1 overflow-x-auto no-scrollbar border-b px-4 md:mx-0 md:px-0">
         {tabs.map((t) => (
           <button
             key={t.id}
@@ -47,6 +49,7 @@ export default function SettingsPage() {
       </div>
       {tab === 'roles' && <RolesEditor />}
       {tab === 'stages' && <StageTargets />}
+      {tab === 'rules' && <RulesEditor />}
       {tab === 'jobs' && <JobsStatus />}
     </>
   );

@@ -12,12 +12,18 @@ import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { PermissionsGuard } from './common/guards/permissions.guard';
 import { CustomersModule } from './customers/customers.module';
 import { DashboardModule } from './dashboard/dashboard.module';
+import { DispatchModule } from './dispatch/dispatch.module';
 import { DocumentsModule } from './documents/documents.module';
+import { InstallationModule } from './installation/installation.module';
 import { JobsModule } from './jobs/jobs.module';
 import { NotificationsModule } from './notifications/notifications.module';
+import { PaymentsModule } from './payments/payments.module';
 import { PrismaModule } from './prisma/prisma.module';
+import { ProductionModule } from './production/production.module';
 import { ProjectsModule } from './projects/projects.module';
+import { ReportsModule } from './reports/reports.module';
 import { RolesModule } from './roles/roles.module';
+import { ServiceModule } from './service/service.module';
 import { SettingsModule } from './settings/settings.module';
 import { SlaModule } from './sla/sla.module';
 import { UsersModule } from './users/users.module';
@@ -58,6 +64,12 @@ class HealthController {
     DashboardModule,
     SlaModule,
     SettingsModule,
+    PaymentsModule,
+    ProductionModule,
+    DispatchModule,
+    InstallationModule,
+    ServiceModule,
+    ReportsModule,
   ],
   controllers: [HealthController],
   providers: [

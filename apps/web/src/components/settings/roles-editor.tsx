@@ -49,7 +49,7 @@ export function RolesEditor() {
   return (
     <div className="grid gap-4 lg:grid-cols-[260px_1fr]">
       <div className="space-y-2">
-        <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 lg:mx-0 lg:flex-col lg:overflow-visible lg:px-0">
+        <div className="-mx-4 flex gap-2 overflow-x-auto no-scrollbar px-4 pb-1 lg:mx-0 lg:flex-col lg:overflow-visible lg:px-0">
           {roles.map((r) => (
             <button
               key={r.id}

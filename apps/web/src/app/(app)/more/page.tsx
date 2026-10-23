@@ -2,14 +2,14 @@
 
 import { ChevronRight, LogOut } from 'lucide-react';
 import Link from 'next/link';
-import { NAV, PageHeader } from '@/components/app-shell';
+import { PageHeader, visibleNav } from '@/components/app-shell';
 import { Card } from '@/components/ui/card';
 import { useAuth } from '@/lib/auth';
 
 /** Mobile overflow menu: every section the bottom bar has no room for. */
 export default function MorePage() {
-  const { user, can, logout } = useAuth();
-  const items = NAV.filter((n) => !n.permission || can(n.permission));
+  const { user, logout } = useAuth();
+  const items = visibleNav(user);
 
   return (
     <div className="mx-auto max-w-md">

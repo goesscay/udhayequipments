@@ -35,6 +35,11 @@ export async function runSeed(prisma: PrismaClient, opts: SeedOptions = {}) {
     });
   }
 
+  // Permissions added by a release are granted to existing system roles below, so new features
+  // work for Team Heads etc. without overwriting what the Super Admin changed on older ones.
+  const knownKeys = new Set((await prisma.permission.findMany({ select: { key: true } })).map((p) => p.key));
+  const newKeys = PERMISSION_KEYS.filter((k) => !knownKeys.has(k));
+
   for (const key of PERMISSION_KEYS) {
     await prisma.permission.upsert({
       where: { key },
@@ -48,7 +53,17 @@ export async function runSeed(prisma: PrismaClient, opts: SeedOptions = {}) {
   for (const code of ROLE_CODES) {
     const def = DEFAULT_ROLES[code];
     const existing = await prisma.role.findUnique({ where: { code } });
-    if (existing && code !== 'SUPER_ADMIN') continue;
+    if (existing && code !== 'SUPER_ADMIN') {
+      const grants = newKeys.filter((k) => def.permissions[k]);
+      if (knownKeys.size && grants.length) {
+        await prisma.rolePermission.createMany({
+          data: grants.map((k) => ({ roleId: existing.id, permissionId: permId.get(k)!, scope: def.permissions[k]! })),
+          skipDuplicates: true,
+        });
+        log(`Granted new permissions to ${code}: ${grants.join(', ')}`);
+      }
+      continue;
+    }
     const role = await prisma.role.upsert({
       where: { code },
       update: { name: def.name, description: def.description, isSystem: true },

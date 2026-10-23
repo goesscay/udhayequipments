@@ -88,7 +88,7 @@ function ProjectsList() {
             className="pl-9"
           />
         </div>
-        <div className="-mx-4 flex gap-2 overflow-x-auto px-4 md:mx-0 md:px-0">
+        <div className="-mx-4 flex gap-2 overflow-x-auto no-scrollbar px-4 md:mx-0 md:px-0">
           <Select value={params.get('stage') ?? ''} onChange={(e) => setParam('stage', e.target.value)} className="w-auto min-w-36">
             <option value="">All stages</option>
             {STAGES.map((s) => (
@@ -229,8 +229,8 @@ function StageProgress({ stage, className }: { stage: ProjectListItem['currentSt
   const pct = ((stageIndex(stage) + 1) / STAGES.length) * 100;
   return (
     <div className={className} title={`Stage ${stageIndex(stage) + 1} of ${STAGES.length}`}>
-      <div className="h-1.5 overflow-hidden rounded-full bg-surface ring-1 ring-line">
-        <div className="h-full rounded-full bg-brand" style={{ width: `${pct}%` }} />
+      <div className="h-1.5 overflow-hidden rounded-none bg-surface ring-1 ring-line">
+        <div className="h-full rounded-none bg-brand" style={{ width: `${pct}%` }} />
       </div>
       <p className="tabular mt-1 text-[10px] text-muted">
         {stageIndex(stage) + 1}/{STAGES.length}

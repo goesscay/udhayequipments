@@ -11,6 +11,8 @@ import {
   IndianRupee,
   PauseCircle,
   Truck,
+  Wallet,
+  Wrench,
   type LucideIcon,
 } from 'lucide-react';
 import Link from 'next/link';
@@ -81,6 +83,13 @@ export default function DashboardPage() {
             <Kpi label="In dispatch" value={data.kpis.inDispatch} icon={Truck} href="/projects?stage=DISPATCH" />
             <Kpi label="Won / lost this month" value={`${data.kpis.wonThisMonth} / ${data.kpis.lostThisMonth}`} icon={CheckCircle2} />
             <Kpi label="On hold" value={data.kpis.onHold} icon={PauseCircle} href="/projects?status=ON_HOLD" />
+            {data.kpis.outstandingPayments !== null && (
+              <Kpi label="Payments outstanding" value={formatINR(data.kpis.outstandingPayments, true)} icon={Wallet} tone="brand" />
+            )}
+            <Kpi label="Trips in next 7 days" value={data.kpis.dispatchesNext7Days} icon={Truck} href="/dispatch" />
+            {data.kpis.openTickets !== null && (
+              <Kpi label="Open service tickets" value={data.kpis.openTickets} icon={Wrench} href="/service" />
+            )}
           </div>
 
           <div className="grid gap-4 md:gap-6 lg:grid-cols-5">
@@ -116,7 +125,7 @@ export default function DashboardPage() {
                               {t.overdue > 0 && <span className="ml-2 text-bad">{t.overdue} late</span>}
                             </span>
                           </div>
-                          <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-surface">
+                          <div className="mt-2 h-1.5 overflow-hidden rounded-none bg-surface">
                             <div className="flex h-full">
                               <div className="bg-brand" style={{ width: `${((t.active - t.overdue) / max) * 100}%` }} />
                               <div className="bg-bad" style={{ width: `${(t.overdue / max) * 100}%` }} />

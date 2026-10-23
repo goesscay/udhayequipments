@@ -4,6 +4,14 @@ import type { StageCode, WorkflowAction } from '@udhay/shared';
 export const ProjectEvents = {
   TRANSITIONED: 'project.transitioned',
   ASSIGNED: 'project.assigned',
+  ACCEPTED: 'project.accepted',
+  MENTIONED: 'project.mentioned',
+  PAYMENT_RECEIVED: 'project.payment_received',
+} as const;
+
+export const TicketEvents = {
+  CREATED: 'ticket.created',
+  ASSIGNED: 'ticket.assigned',
 } as const;
 
 export interface ProjectTransitionedEvent {
@@ -22,4 +30,29 @@ export interface ProjectAssignedEvent {
   actorId: string;
   assigneeId: string;
   stage: StageCode;
+}
+
+export interface ProjectAcceptedEvent {
+  projectId: string;
+  actorId: string;
+  stage: StageCode;
+}
+
+export interface ProjectMentionedEvent {
+  projectId: string;
+  actorId: string;
+  userIds: string[];
+  excerpt: string;
+}
+
+export interface PaymentReceivedEvent {
+  projectId: string;
+  actorId: string;
+  label: string;
+  amount: number;
+}
+
+export interface TicketEvent {
+  ticketId: string;
+  actorId: string;
 }

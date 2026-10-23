@@ -170,6 +170,16 @@ class UsersController {
     return this.users.update(user, id, dto);
   }
 
+  /** Active colleagues for @mentions and pickers; available to every signed-in user. */
+  @Get('users/directory')
+  directory() {
+    return this.prisma.user.findMany({
+      where: { isActive: true, deletedAt: null },
+      select: { id: true, name: true, team: { select: { code: true, name: true } } },
+      orderBy: { name: 'asc' },
+    });
+  }
+
   @Get('teams')
   teams() {
     return this.prisma.team.findMany({ orderBy: { name: 'asc' } });

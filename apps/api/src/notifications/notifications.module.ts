@@ -17,6 +17,7 @@ import { SkipThrottle } from '@nestjs/throttler';
 import { CurrentUser } from '../common/decorators';
 import type { AuthUser } from '../common/types';
 import { NotificationsService } from './notifications.service';
+import { OpsNotifier } from './ops-notifier';
 import { RecipientsService } from './recipients.service';
 import { WorkflowNotifier } from './workflow-notifier';
 
@@ -78,7 +79,7 @@ class NotificationCleanupTask implements OnModuleInit {
 @Global()
 @Module({
   controllers: [NotificationsController],
-  providers: [NotificationsService, RecipientsService, WorkflowNotifier, NotificationCleanupTask],
+  providers: [NotificationsService, RecipientsService, WorkflowNotifier, OpsNotifier, NotificationCleanupTask],
   exports: [NotificationsService, RecipientsService],
 })
 export class NotificationsModule {}

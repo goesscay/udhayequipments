@@ -1,4 +1,4 @@
-import { ForbiddenException, Injectable } from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
 import {
   STAGE_BY_CODE,
@@ -6,6 +6,7 @@ import {
   type Scope,
   type SessionUser,
   type StageCode,
+  type TeamCode,
   type TransitionDef,
 } from '@udhay/shared';
 import { PrismaService } from '../prisma/prisma.module';
@@ -119,5 +120,30 @@ export class AccessService {
 
   canSeePrices(user: AuthUser): boolean {
     return !!this.scopeOf(user, 'price.view');
+  }
+
+  /**
+   * For team-owned modules (production, dispatch, installation, service): ALL works anywhere,
+   * TEAM/OWN only for members of the owning team.
+   */
+  canWorkAs(user: AuthUser, permission: PermissionKey, team: TeamCode): boolean {
+    const scope = this.scopeOf(user, permission);
+    if (!scope) return false;
+    return scope === 'ALL' || user.team === team;
+  }
+
+  requireWorkAs(user: AuthUser, permission: PermissionKey, team: TeamCode) {
+    if (!this.canWorkAs(user, permission, team)) {
+      throw new ForbiddenException('Only the responsible team can do this');
+    }
+  }
+
+  /** Loads a project the user may see, or 404s (never reveals that it exists). */
+  async visibleProject(user: AuthUser, projectId: string, permission: PermissionKey = 'project.view') {
+    const project = await this.prisma.project.findFirst({
+      where: { AND: [this.projectWhere(user, permission), { id: projectId }] },
+    });
+    if (!project) throw new NotFoundException('Project not found');
+    return project;
   }
 }

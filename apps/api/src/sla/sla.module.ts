@@ -1,7 +1,7 @@
 import { Injectable, Module, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { NotificationType } from '@udhay/shared';
-import { STAGE_BY_CODE, TEAM_LABELS } from '@udhay/shared';
+import { OPEN_TICKET_STATUSES, STAGE_BY_CODE, TEAM_LABELS } from '@udhay/shared';
 import { JobRunner } from '../jobs/jobs.module';
 import { NotificationsService } from '../notifications/notifications.service';
 import { RecipientsService } from '../notifications/recipients.service';
@@ -108,7 +108,38 @@ export class SlaService implements OnModuleInit {
       });
       alerts++;
     }
-    return { checked: stages.length, alerts, notified };
+    const tickets = await this.ticketAlerts(now);
+    return { checked: stages.length, alerts, notified, ticketAlerts: tickets };
+  }
+
+  /** One alert per overdue service ticket: the technician (or Service team) and Service heads. */
+  private async ticketAlerts(now: Date) {
+    const overdue = await this.prisma.serviceTicket.findMany({
+      where: { status: { in: OPEN_TICKET_STATUSES }, slaAlerted: false, dueAt: { lt: now } },
+      include: { project: { select: { customer: { select: { name: true } } } } },
+      take: 200,
+    });
+    let sent = 0;
+    for (const t of overdue) {
+      const claimed = await this.prisma.serviceTicket.updateMany({
+        where: { id: t.id, slaAlerted: false },
+        data: { slaAlerted: true },
+      });
+      if (!claimed.count) continue;
+      const [owners, heads] = await Promise.all([
+        t.assigneeId ? Promise.resolve([t.assigneeId]) : this.recipients.teamWith('SERVICE', 'service.manage'),
+        this.recipients.teamHeads('SERVICE'),
+      ]);
+      await this.notifications.notify({
+        userIds: [...owners, ...heads],
+        type: 'TICKET_OVERDUE',
+        title: `Overdue ticket ${t.code}: ${t.project.customer.name}`,
+        body: `${t.title} · was due ${istTime(t.dueAt!)}`,
+        projectId: t.projectId,
+      });
+      sent++;
+    }
+    return sent;
   }
 }
 

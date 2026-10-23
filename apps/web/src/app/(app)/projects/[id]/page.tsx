@@ -6,15 +6,22 @@ import {
   DOCUMENT_TYPES,
   STAGE_BY_CODE,
   TEAM_LABELS,
+  stageIndex,
   type AvailableAction,
   type DocumentType,
   type ProjectDetail,
 } from '@udhay/shared';
-import { ArrowLeft, Download, FileText, MapPin, Pencil, Phone, Upload } from 'lucide-react';
+import { AlertCircle, ArrowLeft, Download, FileText, MapPin, Pencil, Phone, Upload } from 'lucide-react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useRef, useState } from 'react';
 import { toast } from 'sonner';
+import { MentionText, MentionTextarea, toStored } from '@/components/mentions';
+import { DispatchTab } from '@/components/project/dispatch-tab';
+import { PaymentsTab } from '@/components/project/payments-tab';
+import { ProductionTab } from '@/components/project/production-tab';
+import { ServiceTab } from '@/components/project/service-tab';
+import { SiteTab } from '@/components/project/site-tab';
 import { ProjectEditForm } from '@/components/project-edit-form';
 import { DueBadge, PriorityBadge, StageBadge, StatusBadge } from '@/components/status';
 import { StageStepper } from '@/components/stage-stepper';
@@ -22,18 +29,60 @@ import { Button } from '@/components/ui/button';
 import { Badge, Card, CardHeader, EmptyState, Skeleton } from '@/components/ui/card';
 import { Field, Select, Textarea } from '@/components/ui/form';
 import { Sheet } from '@/components/ui/sheet';
-import { api, ApiError } from '@/lib/api';
+import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { uploadDocument } from '@/lib/upload';
 import { cn, formatDate, formatINR, humanize, timeAgo } from '@/lib/utils';
 
-type Tab = 'timeline' | 'documents' | 'comments';
+type Tab = 'timeline' | 'documents' | 'comments' | 'payments' | 'production' | 'dispatch' | 'site' | 'service';
+
+const TAB_LABELS: Record<Tab, string> = {
+  timeline: 'Timeline',
+  documents: 'Documents',
+  comments: 'Comments',
+  payments: 'Payments',
+  production: 'Production',
+  dispatch: 'Dispatch',
+  site: 'Site & handover',
+  service: 'Service',
+};
+
+/** Operational tabs appear once the project reaches the stage they belong to. */
+function tabsFor(p: ProjectDetail, canSeePrices: boolean): Tab[] {
+  const at = stageIndex(p.currentStage);
+  const closed = p.status === 'COMPLETED';
+  const tabs: Tab[] = ['timeline', 'documents', 'comments'];
+  if (canSeePrices) tabs.push('payments');
+  if (at >= stageIndex('CAD_DRAWING') || closed) tabs.push('production');
+  if (at >= stageIndex('PRODUCTION') || closed) tabs.push('dispatch');
+  if (at >= stageIndex('DISPATCH') || closed) tabs.push('site');
+  if (at >= stageIndex('SERVICE') || closed) tabs.push('service');
+  return tabs;
+}
+
+/** The tab where the current stage's work happens. */
+function defaultTab(p: ProjectDetail): Tab {
+  switch (p.currentStage) {
+    case 'PRODUCTION':
+      return 'production';
+    case 'DISPATCH':
+      return 'dispatch';
+    case 'INSTALLATION':
+    case 'HANDOVER':
+      return 'site';
+    case 'SERVICE':
+      return 'service';
+    default:
+      return 'timeline';
+  }
+}
 
 export default function ProjectPage() {
   const { id } = useParams<{ id: string }>();
   const qc = useQueryClient();
   const { can } = useAuth();
   const [editing, setEditing] = useState(false);
-  const [tab, setTab] = useState<Tab>('timeline');
+  const [tabChoice, setTab] = useState<Tab | null>(null);
   const [pending, setPending] = useState<AvailableAction | null>(null);
   const [manage, setManage] = useState<'hold' | 'cancel' | null>(null);
 
@@ -57,14 +106,8 @@ export default function ProjectPage() {
       setPending(null);
       setManage(null);
     },
-    onError: (e: Error) => {
-      const missing = e instanceof ApiError ? e.body.missing : undefined;
-      toast.error(
-        missing?.length
-          ? `Upload first: ${missing.map((m) => DOCUMENT_LABELS[m as DocumentType]).join(', ')}`
-          : e.message,
-      );
-    },
+    // The API lists every unmet rule and missing document in one message.
+    onError: (e: Error) => toast.error(e.message),
   });
 
   const runAction = (a: AvailableAction, reason?: string) =>
@@ -83,6 +126,9 @@ export default function ProjectPage() {
   }
 
   const open = [...p.stages].reverse().find((s) => s.status === 'OPEN');
+  const tabs = tabsFor(p, can('price.view'));
+  const tab: Tab = tabChoice && tabs.includes(tabChoice) ? tabChoice : tabs.includes(defaultTab(p)) ? defaultTab(p) : 'timeline';
+  const active = p.status === 'ACTIVE';
 
   return (
     <div className="pb-24 md:pb-0">
@@ -173,17 +219,17 @@ export default function ProjectPage() {
           )}
 
           <Card>
-            <div className="flex border-b">
-              {(['timeline', 'documents', 'comments'] as Tab[]).map((t) => (
+            <div className="flex overflow-x-auto no-scrollbar border-b">
+              {tabs.map((t) => (
                 <button
                   key={t}
                   onClick={() => setTab(t)}
                   className={cn(
-                    '-mb-px flex-1 border-b-2 px-3 py-3 text-[13px] font-medium capitalize md:flex-none md:px-5',
+                    '-mb-px shrink-0 whitespace-nowrap border-b-2 px-3.5 py-3 text-[13px] font-medium md:px-4',
                     tab === t ? 'border-brand text-ink' : 'border-transparent text-muted',
                   )}
                 >
-                  {t}
+                  {TAB_LABELS[t]}
                   {t === 'documents' && p.documents.length > 0 && <span className="ml-1 text-muted">({p.documents.length})</span>}
                 </button>
               ))}
@@ -191,6 +237,19 @@ export default function ProjectPage() {
             {tab === 'timeline' && <Timeline p={p} />}
             {tab === 'documents' && <Documents p={p} onChange={refresh} openStageCycle={open?.cycle ?? 1} />}
             {tab === 'comments' && <Comments p={p} onChange={refresh} />}
+            {tab === 'payments' && <PaymentsTab projectId={p.id} projectValue={p.estimatedValue} />}
+            {tab === 'production' && <ProductionTab projectId={p.id} active={active} />}
+            {tab === 'dispatch' && <DispatchTab projectId={p.id} active={active} />}
+            {tab === 'site' && (
+              <SiteTab projectId={p.id} stage={p.currentStage} active={active} customer={p.customerContact} />
+            )}
+            {tab === 'service' && (
+              <ServiceTab
+                projectId={p.id}
+                canRaise={p.currentStage === 'SERVICE' || p.status === 'COMPLETED'}
+                contact={{ name: p.customerContact.contactPerson, phone: p.customerContact.phone }}
+              />
+            )}
           </Card>
         </div>
       </div>
@@ -198,7 +257,7 @@ export default function ProjectPage() {
       {/* Mobile sticky action bar */}
       {(p.availableActions.length > 0 || p.canAccept) && (
         <div className="pb-safe fixed inset-x-0 bottom-[57px] z-20 border-t bg-white/95 p-3 backdrop-blur md:hidden">
-          <div className="flex gap-2 overflow-x-auto">
+          <div className="flex gap-2 overflow-x-auto no-scrollbar">
             <Actions p={p} busy={post.isPending} onAccept={() => post.mutate({ path: 'accept' })} onAction={setPending} mobile />
           </div>
         </div>
@@ -301,13 +360,18 @@ function ActionSheet({
   if (!action) return null;
   return (
     <Sheet open onClose={onClose} title={action.label}>
-      {action.missingDocuments.length > 0 ? (
+      {action.blockers.length > 0 || action.missingDocuments.length > 0 ? (
         <div className="space-y-3 text-[13px]">
-          <p>Upload these documents first (Documents tab):</p>
-          <ul className="space-y-1">
+          <p>Not yet. First:</p>
+          <ul className="space-y-1.5">
+            {action.blockers.map((b) => (
+              <li key={b} className="flex items-start gap-2">
+                <AlertCircle className="mt-0.5 size-4 shrink-0 text-warn" /> {b}
+              </li>
+            ))}
             {action.missingDocuments.map((d) => (
-              <li key={d} className="flex items-center gap-2">
-                <FileText className="size-4 text-muted" /> {DOCUMENT_LABELS[d]}
+              <li key={d} className="flex items-start gap-2">
+                <FileText className="mt-0.5 size-4 shrink-0 text-muted" /> Upload: {DOCUMENT_LABELS[d]} (Documents tab)
               </li>
             ))}
           </ul>
@@ -425,12 +489,7 @@ function Documents({ p, onChange, openStageCycle }: { p: ProjectDetail; onChange
   const [type, setType] = useState<DocumentType>(needed[0] ?? 'OTHER');
 
   const upload = useMutation({
-    mutationFn: (file: File) => {
-      const fd = new FormData();
-      fd.append('type', type);
-      fd.append('file', file);
-      return api(`/projects/${p.id}/documents`, { method: 'POST', body: fd });
-    },
+    mutationFn: (file: File) => uploadDocument(p.id, type, file),
     onSuccess: () => {
       toast.success('Uploaded');
       onChange();
@@ -509,10 +568,12 @@ function Documents({ p, onChange, openStageCycle }: { p: ProjectDetail; onChange
 
 function Comments({ p, onChange }: { p: ProjectDetail; onChange: () => void }) {
   const [body, setBody] = useState('');
+  const [picked, setPicked] = useState<Record<string, string>>({});
   const add = useMutation({
-    mutationFn: () => api(`/projects/${p.id}/comments`, { method: 'POST', json: { body } }),
+    mutationFn: () => api(`/projects/${p.id}/comments`, { method: 'POST', json: { body: toStored(body.trim(), picked) } }),
     onSuccess: () => {
       setBody('');
+      setPicked({});
       onChange();
     },
     onError: (e: Error) => toast.error(e.message),
@@ -526,7 +587,13 @@ function Comments({ p, onChange }: { p: ProjectDetail; onChange: () => void }) {
           if (body.trim()) add.mutate();
         }}
       >
-        <Textarea rows={1} className="min-h-10" placeholder="Write a comment…" value={body} onChange={(e) => setBody(e.target.value)} />
+        <MentionTextarea
+          value={body}
+          onChange={setBody}
+          picked={picked}
+          onPick={(name, uid) => setPicked((m) => ({ ...m, [name]: uid }))}
+          placeholder="Write a comment… type @ to mention"
+        />
         <Button type="submit" loading={add.isPending} disabled={!body.trim()}>Post</Button>
       </form>
       {!p.comments.length ? (
@@ -539,7 +606,9 @@ function Comments({ p, onChange }: { p: ProjectDetail; onChange: () => void }) {
                 <span className="font-medium">{c.author.name}</span>{' '}
                 <span className="text-muted">· {timeAgo(c.createdAt)}</span>
               </p>
-              <p className="mt-1 whitespace-pre-wrap text-[13px]">{c.body}</p>
+              <p className="mt-1 whitespace-pre-wrap text-[13px]">
+                <MentionText body={c.body} />
+              </p>
             </li>
           ))}
         </ul>

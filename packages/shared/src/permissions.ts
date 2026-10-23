@@ -17,6 +17,13 @@ export const PERMISSIONS = {
   'role.manage': 'Edit roles and permissions',
   'settings.manage': 'Edit system settings (SLAs etc.)',
   'audit.view': 'View the audit log',
+  'payment.manage': 'Add payment milestones and record receipts',
+  'production.manage': 'Manage production job cards and quality checks',
+  'dispatch.manage': 'Plan dispatch trips and record deliveries',
+  'installation.manage': 'Manage snag lists and record the handover',
+  'service.view': 'View service tickets',
+  'service.manage': 'Create, assign and resolve service tickets',
+  'report.view': 'View reports and export data',
 } as const;
 
 export type PermissionKey = keyof typeof PERMISSIONS;
@@ -69,6 +76,8 @@ export const DEFAULT_ROLES: Record<
         'price.view',
         'user.view',
         'audit.view',
+        'service.view',
+        'report.view',
       ]),
     },
   },
@@ -87,6 +96,11 @@ export const DEFAULT_ROLES: Record<
       'customer.view': 'ALL',
       'customer.manage': 'TEAM',
       'user.view': 'TEAM',
+      'production.manage': 'TEAM',
+      'dispatch.manage': 'TEAM',
+      'installation.manage': 'TEAM',
+      'service.view': 'TEAM',
+      'service.manage': 'TEAM',
     },
   },
   TEAM_MEMBER: {
@@ -100,11 +114,16 @@ export const DEFAULT_ROLES: Record<
       'document.upload': 'OWN',
       'customer.view': 'ALL',
       'customer.manage': 'OWN',
+      'production.manage': 'TEAM',
+      'dispatch.manage': 'TEAM',
+      'installation.manage': 'TEAM',
+      'service.view': 'TEAM',
+      'service.manage': 'TEAM',
     },
   },
   VIEWER: {
     name: 'Viewer',
     description: 'Read-only access to all projects.',
-    permissions: all(['dashboard.view', 'project.view', 'document.view', 'customer.view']),
+    permissions: all(['dashboard.view', 'project.view', 'document.view', 'customer.view', 'service.view']),
   },
 };

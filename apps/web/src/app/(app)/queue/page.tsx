@@ -1,15 +1,25 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
-import { STAGE_BY_CODE, type QueueItem } from '@udhay/shared';
+import { STAGE_BY_CODE, type QueueItem, type TicketListItem } from '@udhay/shared';
 import { ChevronRight } from 'lucide-react';
 import Link from 'next/link';
 import { PageHeader } from '@/components/app-shell';
+import { TicketRows } from '@/components/service/tickets';
 import { DueBadge, PriorityBadge, StageBadge } from '@/components/status';
 import { Badge, Card, EmptyState, Skeleton } from '@/components/ui/card';
 import { api } from '@/lib/api';
+import { useAuth } from '@/lib/auth';
 
 export default function QueuePage() {
+  const { user } = useAuth();
+  const isService = !!user?.permissions['service.manage'] && user.team?.code === 'SERVICE';
+  const tickets = useQuery({
+    queryKey: ['tickets', 'mine'],
+    queryFn: () => api<TicketListItem[]>('/service/tickets?status=OPEN_ANY&mine=true'),
+    enabled: isService,
+    refetchInterval: 60_000,
+  });
   const { data, isLoading } = useQuery({
     queryKey: ['queue'],
     queryFn: () => api<QueueItem[]>('/projects/queue'),
@@ -28,12 +38,22 @@ export default function QueuePage() {
             <Skeleton key={i} className="h-20" />
           ))}
         </div>
-      ) : !data?.length ? (
+      ) : !data?.length && !tickets.data?.length ? (
         <Card>
           <EmptyState title="You're all caught up" hint="New handoffs to your team will appear here." />
         </Card>
       ) : (
         <div className="space-y-6">
+          {!!tickets.data?.length && (
+            <section>
+              <h2 className="mb-2 text-[12px] font-semibold uppercase tracking-wide text-muted">
+                My service tickets <span className="tabular">({tickets.data.length})</span>
+              </h2>
+              <Card className="overflow-hidden">
+                <TicketRows tickets={tickets.data} />
+              </Card>
+            </section>
+          )}
           {waiting.length > 0 && <Section title="New handoffs to accept" items={waiting} />}
           {working.length > 0 && <Section title="In progress" items={working} />}
         </div>

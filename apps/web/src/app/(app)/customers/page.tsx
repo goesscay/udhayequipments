@@ -62,7 +62,7 @@ export default function CustomersPage() {
         <Card className="divide-y overflow-hidden">
           {data.map((c) => (
             <Link key={c.id} href={`/customers/${c.id}`} className="flex items-center gap-3 px-4 py-3 hover:bg-surface">
-              <div className="grid size-9 shrink-0 place-items-center rounded-full bg-brand-50 text-[12px] font-semibold text-brand-600">
+              <div className="grid size-9 shrink-0 place-items-center rounded-none bg-brand-50 text-[12px] font-semibold text-brand-600">
                 {c.name.split(/\s+/).map((w) => w[0]).slice(0, 2).join('').toUpperCase()}
               </div>
               <div className="min-w-0 flex-1">

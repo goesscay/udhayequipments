@@ -51,6 +51,8 @@ export interface AvailableAction {
   tone: 'primary' | 'neutral' | 'danger';
   reasonRequired: boolean;
   missingDocuments: DocumentType[];
+  /** Business rules not yet met, e.g. "Advance payment not received". */
+  blockers: string[];
 }
 
 export interface ProjectDetail extends ProjectListItem {
@@ -120,6 +122,11 @@ export interface DashboardSummary {
     pendingAcceptance: number;
     wonThisMonth: number;
     lostThisMonth: number;
+    /** null when the viewer lacks price.view */
+    outstandingPayments: number | null;
+    /** null when the viewer lacks service.view */
+    openTickets: number | null;
+    dispatchesNext7Days: number;
   };
   stageCounts: { stage: StageCode; count: number; overdue: number }[];
   teamWorkload: { team: TeamCode; active: number; overdue: number }[];
@@ -144,6 +151,12 @@ export const NOTIFICATION_TYPES = [
   'SLA_DUE_SOON',
   'SLA_OVERDUE',
   'SLA_ESCALATED',
+  'MENTION',
+  'HANDOFF_ACCEPTED',
+  'PAYMENT_RECEIVED',
+  'TICKET_CREATED',
+  'TICKET_ASSIGNED',
+  'TICKET_OVERDUE',
 ] as const;
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
 
