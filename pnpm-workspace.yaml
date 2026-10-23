@@ -2,6 +2,10 @@ packages:
   - apps/*
   - packages/*
 
+# Flat node_modules (like npm). Hostinger copies the built app into a release folder
+# without keeping pnpm's symlinks, which breaks package resolution (e.g. next -> styled-jsx).
+nodeLinker: hoisted
+
 allowBuilds:
   '@prisma/client': true
   '@prisma/engines': true
