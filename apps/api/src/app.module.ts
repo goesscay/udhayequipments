@@ -18,6 +18,7 @@ import { NotificationsModule } from './notifications/notifications.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { ProjectsModule } from './projects/projects.module';
 import { RolesModule } from './roles/roles.module';
+import { SettingsModule } from './settings/settings.module';
 import { SlaModule } from './sla/sla.module';
 import { UsersModule } from './users/users.module';
 
@@ -56,6 +57,7 @@ class HealthController {
     DocumentsModule,
     DashboardModule,
     SlaModule,
+    SettingsModule,
   ],
   controllers: [HealthController],
   providers: [

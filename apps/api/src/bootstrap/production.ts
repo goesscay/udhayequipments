@@ -1,6 +1,6 @@
 import { Logger } from '@nestjs/common';
 import type { NextFunction, Request, RequestHandler, Response } from 'express';
-import { execFileSync } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { join, resolve } from 'node:path';
@@ -30,13 +30,45 @@ export function normalizeDatabaseUrl() {
  * Applies pending Prisma migrations. Runs at start-up because shared hosting has no
  * shell step between build and start. Fails loudly so a broken schema never serves traffic.
  */
-export function runMigrations() {
+export function runMigrations(): Promise<void> {
   const cli = createRequire(join(apiRoot, 'package.json')).resolve('prisma/build/index.js');
   logger.log('Applying database migrations…');
-  execFileSync(process.execPath, [cli, 'migrate', 'deploy', '--schema', join(apiRoot, 'prisma/schema.prisma')], {
-    stdio: 'inherit',
-    env: process.env,
+  return new Promise((resolvePromise, reject) => {
+    const child = spawn(
+      process.execPath,
+      [cli, 'migrate', 'deploy', '--schema', join(apiRoot, 'prisma/schema.prisma')],
+      { stdio: 'inherit', env: process.env },
+    );
+    child.on('error', reject);
+    child.on('exit', (code) =>
+      code === 0 ? resolvePromise() : reject(new Error(`prisma migrate deploy exited with code ${code}`)),
+    );
   });
+}
+
+/**
+ * Lets the server listen immediately (Hostinger expects listen() within a few seconds) while
+ * migrations and the web app warm up. Requests that arrive meanwhile wait instead of failing.
+ */
+export class WarmupGate {
+  private ready = false;
+  private markReady!: () => void;
+  private readonly readyPromise = new Promise<void>((r) => (this.markReady = r));
+
+  open() {
+    this.ready = true;
+    this.markReady();
+  }
+
+  readonly middleware = (req: Request, res: Response, nextFn: NextFunction) => {
+    if (this.ready) return nextFn();
+    const timeout = new Promise<'timeout'>((r) => setTimeout(() => r('timeout'), 60_000).unref());
+    void Promise.race([this.readyPromise, timeout]).then((result) =>
+      result === 'timeout'
+        ? res.status(503).set('Retry-After', '10').json({ statusCode: 503, message: 'Starting up, try again shortly' })
+        : nextFn(),
+    );
+  };
 }
 
 /**

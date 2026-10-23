@@ -3,12 +3,15 @@ import {
   Body,
   ConflictException,
   Controller,
+  Delete,
   ForbiddenException,
   Get,
+  HttpCode,
   Injectable,
   Module,
   NotFoundException,
   Param,
+  Patch,
   Post,
   Put,
 } from '@nestjs/common';
@@ -47,6 +50,11 @@ class CreateRoleDto {
   @IsOptional() @IsString() @MaxLength(255) description?: string;
 }
 
+class UpdateRoleDto {
+  @IsOptional() @IsString() @MaxLength(80) name?: string;
+  @IsOptional() @IsString() @MaxLength(255) description?: string;
+}
+
 @Injectable()
 class RolesService {
   constructor(
@@ -79,6 +87,33 @@ class RolesService {
     const role = await this.prisma.role.create({ data: { ...dto, isSystem: false } });
     await this.audit.log({ actorId: actor.id, entity: 'role', entityId: role.id, action: 'create', data: { code: role.code } });
     return role;
+  }
+
+  async update(actor: AuthUser, roleId: string, dto: UpdateRoleDto) {
+    const role = await this.prisma.role.findUnique({ where: { id: roleId } });
+    if (!role) throw new NotFoundException('Role not found');
+    if (role.code === 'SUPER_ADMIN') throw new ForbiddenException('The Super Admin role cannot be changed');
+    await this.prisma.role.update({
+      where: { id: roleId },
+      data: { name: dto.name?.trim() || undefined, description: dto.description?.trim() },
+    });
+    await this.audit.log({ actorId: actor.id, entity: 'role', entityId: roleId, action: 'update', data: { changed: Object.keys(dto) } });
+    return (await this.list()).find((r) => r.id === roleId);
+  }
+
+  /** Only custom roles with no users can be deleted; system roles are seeded and always present. */
+  async remove(actor: AuthUser, roleId: string) {
+    const role = await this.prisma.role.findUnique({
+      where: { id: roleId },
+      include: { _count: { select: { users: true } } },
+    });
+    if (!role) throw new NotFoundException('Role not found');
+    if (role.isSystem) throw new ForbiddenException('System roles cannot be deleted');
+    if (role._count.users > 0) {
+      throw new BadRequestException(`Move the ${role._count.users} user(s) with this role to another role first`);
+    }
+    await this.prisma.role.delete({ where: { id: roleId } });
+    await this.audit.log({ actorId: actor.id, entity: 'role', entityId: roleId, action: 'delete', data: { code: role.code } });
   }
 
   async setPermissions(actor: AuthUser, roleId: string, dto: SetPermissionsDto) {
@@ -124,6 +159,19 @@ class RolesController {
   @RequirePermissions('role.manage')
   create(@CurrentUser() user: AuthUser, @Body() dto: CreateRoleDto) {
     return this.roles.create(user, dto);
+  }
+
+  @Patch('roles/:id')
+  @RequirePermissions('role.manage')
+  update(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: UpdateRoleDto) {
+    return this.roles.update(user, id, dto);
+  }
+
+  @Delete('roles/:id')
+  @HttpCode(204)
+  @RequirePermissions('role.manage')
+  remove(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.roles.remove(user, id);
   }
 
   @Put('roles/:id/permissions')

@@ -1,12 +1,14 @@
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { PRIORITIES, createProjectSchema, type CreateProjectInput, type ProjectDetail } from '@udhay/shared';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { Suspense } from 'react';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import { PageHeader } from '@/components/app-shell';
+import type { Customer } from '@/components/customer-form';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Field, Input, Select, Textarea } from '@/components/ui/form';
@@ -15,7 +17,22 @@ import { useAuth } from '@/lib/auth';
 import { humanize } from '@/lib/utils';
 
 export default function NewProjectPage() {
+  return (
+    <Suspense>
+      <NewProjectForm />
+    </Suspense>
+  );
+}
+
+function NewProjectForm() {
   const router = useRouter();
+  // Started from a customer page: reuse that customer instead of creating a new one.
+  const customerId = useSearchParams().get('customerId') ?? undefined;
+  const { data: existing } = useQuery({
+    queryKey: ['customer', customerId],
+    queryFn: () => api<Customer>(`/customers/${customerId}`),
+    enabled: !!customerId,
+  });
   const qc = useQueryClient();
   const { can } = useAuth();
   const {
@@ -24,7 +41,9 @@ export default function NewProjectPage() {
     formState: { errors },
   } = useForm<CreateProjectInput>({
     resolver: zodResolver(createProjectSchema),
-    defaultValues: { priority: 'NORMAL' },
+    defaultValues: { priority: 'NORMAL', customerId },
+    values: existing ? { priority: 'NORMAL', title: '', customerId, city: existing.city ?? '', siteAddress: existing.address ?? '' } : undefined,
+    resetOptions: { keepDirtyValues: true },
   });
 
   const create = useMutation({
@@ -49,6 +68,17 @@ export default function NewProjectPage() {
     <div className="mx-auto max-w-2xl">
       <PageHeader title="New project" subtitle="Capture the customer requirement. It starts at the Lead stage." />
       <form onSubmit={handleSubmit((v) => create.mutate(v))} className="space-y-4">
+        {customerId ? (
+          <Card className="p-4">
+            <h2 className="text-sm font-semibold">Customer</h2>
+            <p className="mt-2 text-[14px] font-medium">{existing?.name ?? 'Loading…'}</p>
+            {existing && (
+              <p className="text-[12px] text-muted">
+                {[existing.contactPerson, existing.phone, existing.city].filter(Boolean).join(' · ')}
+              </p>
+            )}
+          </Card>
+        ) : (
         <Card className="space-y-4 p-4">
           <h2 className="text-sm font-semibold">Customer</h2>
           <div className="grid gap-4 md:grid-cols-2">
@@ -66,6 +96,7 @@ export default function NewProjectPage() {
             </Field>
           </div>
         </Card>
+        )}
 
         <Card className="space-y-4 p-4">
           <h2 className="text-sm font-semibold">Project</h2>

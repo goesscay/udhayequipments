@@ -77,7 +77,7 @@ curl -fsS -X POST -H "X-Jobs-Secret: $JOBS_SECRET" https://<api-domain>/api/jobs
 ### Production: https://app.udhayequipments.com (Hostinger Cloud, Node.js)
 - **One Node process** serves everything. `node apps/api/dist/main.js` answers `/api/*` with NestJS and hands every other path to the built Next.js app (`apps/web/.next`).
 - **Deploys:** every push to `main` on `goesscay/udhayequipments` builds on Hostinger. The build installs with pnpm and runs `node scripts/build.mjs`; build logs are in hPanel → Node.js.
-- **On start-up** the app applies pending Prisma migrations, then syncs reference data (teams, permissions, system roles, stage SLAs). Turn these off with `DB_AUTO_MIGRATE=false` / `DB_AUTO_SEED=false`.
+- **On start-up** the server starts listening right away (Hostinger expects that within ~3 s). Requests wait at a warm-up gate while it applies pending Prisma migrations, syncs reference data (teams, permissions, system roles, stage SLAs) and loads the web app; scheduled jobs start only after that. Turn these off with `DB_AUTO_MIGRATE=false` / `DB_AUTO_SEED=false`.
 - **Database:** MySQL `u155045157_udhay_tracker`, created by hPanel. `DATABASE_URL` / `DB_*` are written into the app's environment, and the app rewrites host `localhost` to `127.0.0.1`.
 - **Uploads:** `/home/u155045157/udhay-uploads`, outside the deploy folder so they survive redeploys. Back this folder up together with the database.
 - **Scheduled jobs:** these run in-process. An hPanel cron job also calls `/api/jobs/run` every 10 minutes as a backup.
@@ -85,6 +85,6 @@ curl -fsS -X POST -H "X-Jobs-Secret: $JOBS_SECRET" https://<api-domain>/api/jobs
 - **First Super Admin:** add `SEED_SUPERADMIN_EMAIL` and `SEED_SUPERADMIN_PASSWORD` in hPanel → environment variables, then restart. The account is created on start-up if that email doesn't exist yet. Remove the password variable after signing in.
 
 ## Not yet built (next steps from PLAN.md)
-- Role editor UI, settings UI, customer list page, and PWA manifest/offline support.
+- Offline mode and push notifications. The app can be installed on phones (manifest + icons) but needs a connection.
 - Phase 2: payments, production job cards, dispatch, service tickets.
 - More tests (SLA level rules are covered: `pnpm --filter @udhay/api test`).

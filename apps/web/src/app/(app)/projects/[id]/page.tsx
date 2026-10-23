@@ -10,11 +10,12 @@ import {
   type DocumentType,
   type ProjectDetail,
 } from '@udhay/shared';
-import { ArrowLeft, Download, FileText, MapPin, Phone, Upload } from 'lucide-react';
+import { ArrowLeft, Download, FileText, MapPin, Pencil, Phone, Upload } from 'lucide-react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useRef, useState } from 'react';
 import { toast } from 'sonner';
+import { ProjectEditForm } from '@/components/project-edit-form';
 import { DueBadge, PriorityBadge, StageBadge, StatusBadge } from '@/components/status';
 import { StageStepper } from '@/components/stage-stepper';
 import { Button } from '@/components/ui/button';
@@ -30,6 +31,8 @@ type Tab = 'timeline' | 'documents' | 'comments';
 export default function ProjectPage() {
   const { id } = useParams<{ id: string }>();
   const qc = useQueryClient();
+  const { can } = useAuth();
+  const [editing, setEditing] = useState(false);
   const [tab, setTab] = useState<Tab>('timeline');
   const [pending, setPending] = useState<AvailableAction | null>(null);
   const [manage, setManage] = useState<'hold' | 'cancel' | null>(null);
@@ -93,8 +96,21 @@ export default function ProjectPage() {
           <span className="text-[12px] font-medium text-muted">{p.code}</span>
           <StatusBadge status={p.status} />
           <PriorityBadge priority={p.priority} />
+          {can('project.update') && (
+            <Button variant="ghost" size="sm" className="ml-auto -mr-2 text-muted" onClick={() => setEditing(true)}>
+              <Pencil /> Edit
+            </Button>
+          )}
         </div>
-        <h1 className="mt-1 text-xl font-semibold tracking-tight md:text-2xl">{p.customer.name}</h1>
+        <h1 className="mt-1 text-xl font-semibold tracking-tight md:text-2xl">
+          {can('customer.view') ? (
+            <Link href={`/customers/${p.customer.id}`} className="hover:text-brand-600">
+              {p.customer.name}
+            </Link>
+          ) : (
+            p.customer.name
+          )}
+        </h1>
         <p className="text-[13px] text-muted">{p.title}</p>
 
         <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1.5 text-[13px] text-muted">
@@ -194,6 +210,15 @@ export default function ProjectPage() {
         onClose={() => setPending(null)}
         onConfirm={(reason) => pending && runAction(pending, reason)}
       />
+      <Sheet open={editing} onClose={() => setEditing(false)} title="Edit project">
+        <ProjectEditForm
+          project={p}
+          onSaved={() => {
+            setEditing(false);
+            refresh();
+          }}
+        />
+      </Sheet>
       <Sheet open={!!manage} onClose={() => setManage(null)} title={manage === 'hold' ? 'Put project on hold' : 'Cancel project'}>
         <ReasonForm
           busy={post.isPending}

@@ -8,7 +8,6 @@ import {
   Injectable,
   Logger,
   Module,
-  OnApplicationBootstrap,
   OnModuleDestroy,
   Post,
 } from '@nestjs/common';
@@ -37,7 +36,7 @@ const TICK_MS = 60_000;
  * even with several app instances or a cron calling POST /api/jobs/run at the same time.
  */
 @Injectable()
-export class JobRunner implements OnApplicationBootstrap, OnModuleDestroy {
+export class JobRunner implements OnModuleDestroy {
   private readonly logger = new Logger(JobRunner.name);
   private readonly tasks = new Map<string, ScheduledTask>();
   private timers: NodeJS.Timeout[] = [];
@@ -52,8 +51,9 @@ export class JobRunner implements OnApplicationBootstrap, OnModuleDestroy {
     this.tasks.set(task.name, task);
   }
 
-  onApplicationBootstrap() {
-    if (this.config.get('JOBS_IN_PROCESS', 'true') === 'false') return;
+  /** Called by main.ts once migrations have run and the app is ready. */
+  start() {
+    if (this.timers.length || this.config.get('JOBS_IN_PROCESS', 'true') === 'false') return;
     const interval = setInterval(() => void this.tick(), TICK_MS);
     const first = setTimeout(() => void this.tick(), 10_000);
     interval.unref();

@@ -3,11 +3,14 @@
 import type { PermissionKey } from '@udhay/shared';
 import {
   Bell,
+  Building2,
   FolderKanban,
   Inbox,
   LayoutDashboard,
   LogOut,
+  Menu,
   Plus,
+  Settings,
   Users,
   type LucideIcon,
 } from 'lucide-react';
@@ -25,21 +28,28 @@ interface NavItem {
   permission?: PermissionKey;
 }
 
-const NAV: NavItem[] = [
+export const NAV: NavItem[] = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, permission: 'dashboard.view' },
   { href: '/queue', label: 'My Queue', icon: Inbox },
   { href: '/projects', label: 'Projects', icon: FolderKanban, permission: 'project.view' },
+  { href: '/customers', label: 'Customers', icon: Building2, permission: 'customer.view' },
   { href: '/notifications', label: 'Notifications', icon: Bell },
   { href: '/users', label: 'Users', icon: Users, permission: 'user.view' },
+  { href: '/settings', label: 'Settings', icon: Settings, permission: 'settings.manage' },
 ];
+
+const MORE: NavItem = { href: '/more', label: 'More', icon: Menu };
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const { user, can, logout } = useAuth();
   const pathname = usePathname();
   const { data: unread = 0 } = useUnreadCount();
   const items = NAV.filter((n) => !n.permission || can(n.permission));
-  // The mobile bottom bar has room for four items; notifications live in the top bar there.
-  const mobileItems = items.filter((n) => n.href !== '/notifications').slice(0, 4);
+  // The mobile bottom bar has room for four items: the first three, then "More" for the rest.
+  // Notifications live in the mobile top bar instead.
+  const mobileCandidates = items.filter((n) => n.href !== '/notifications');
+  const mobileItems =
+    mobileCandidates.length <= 4 ? mobileCandidates : [...mobileCandidates.slice(0, 3), MORE];
   const isActive = (href: string) => pathname === href || pathname.startsWith(`${href}/`);
   const initials = user?.name.split(' ').map((p) => p[0]).slice(0, 2).join('').toUpperCase();
 
