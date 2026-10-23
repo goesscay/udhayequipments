@@ -74,9 +74,15 @@ curl -fsS -X POST -H "X-Jobs-Secret: $JOBS_SECRET" https://<api-domain>/api/jobs
 
 `GET /api/jobs/status` (Super Admin) shows the last run, its result and any error for each task.
 
-### Hosting (Hostinger shared Node.js)
-- **No Docker, Redis or S3:** MySQL comes from hPanel, and uploads go to local disk (`UPLOAD_DIR` should be outside the deploy folder).
-- The web app and the API are two Node apps, for example `app.<domain>` and `api.<domain>`. Set `API_URL` in the web app to the API's address, and `WEB_ORIGIN` in the API to the web app's address.
+### Production: https://app.udhayequipments.com (Hostinger Cloud, Node.js)
+- **One Node process** serves everything. `node apps/api/dist/main.js` answers `/api/*` with NestJS and hands every other path to the built Next.js app (`apps/web/.next`).
+- **Deploys:** every push to `main` on `goesscay/udhayequipments` builds on Hostinger. The build installs with pnpm and runs `node scripts/build.mjs`; build logs are in hPanel → Node.js.
+- **On start-up** the app applies pending Prisma migrations, then syncs reference data (teams, permissions, system roles, stage SLAs). Turn these off with `DB_AUTO_MIGRATE=false` / `DB_AUTO_SEED=false`.
+- **Database:** MySQL `u155045157_udhay_tracker`, created by hPanel. `DATABASE_URL` / `DB_*` are written into the app's environment, and the app rewrites host `localhost` to `127.0.0.1`.
+- **Uploads:** `/home/u155045157/udhay-uploads`, outside the deploy folder so they survive redeploys. Back this folder up together with the database.
+- **Scheduled jobs:** these run in-process. An hPanel cron job also calls `/api/jobs/run` every 10 minutes as a backup.
+- **Environment variables:** edit them one at a time in hPanel. Avoid the API's "replace all" call, because the generated database password can't be read back and would be lost.
+- **First Super Admin:** add `SEED_SUPERADMIN_EMAIL` and `SEED_SUPERADMIN_PASSWORD` in hPanel → environment variables, then restart. The account is created on start-up if that email doesn't exist yet. Remove the password variable after signing in.
 
 ## Not yet built (next steps from PLAN.md)
 - Role editor UI, settings UI, customer list page, and PWA manifest/offline support.
