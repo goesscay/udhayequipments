@@ -47,6 +47,11 @@ export function StatusBadge({ status }: { status: ProjectStatus }) {
   return <Badge tone={statusTone[status]}>{status.replace('_', ' ').toLowerCase()}</Badge>;
 }
 
+export function DemoBadge({ isDemo }: { isDemo?: boolean }) {
+  if (!isDemo) return null;
+  return <Badge tone="blue">DEMO</Badge>;
+}
+
 export function PriorityBadge({ priority }: { priority: Priority }) {
   if (priority === 'NORMAL' || priority === 'LOW') return null;
   return <Badge tone={priority === 'URGENT' ? 'red' : 'amber'}>{priority.toLowerCase()}</Badge>;

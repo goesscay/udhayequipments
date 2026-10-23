@@ -106,7 +106,8 @@ export async function runSeed(prisma: PrismaClient, opts: SeedOptions = {}) {
 
   if (opts.demoUsers) {
     const demo: [string, string, RoleCode, TeamCode][] = [
-      ['Office Admin', 'admin@udhay.local', 'ADMIN', 'ADMIN'],
+      ['Office Admin', 'admin@udhay.local', 'ADMIN', 'MANAGEMENT'],
+      ['Operations Executive', 'operations@udhay.local', 'OPERATIONS', 'OPERATIONS'],
       ['Overall Head', 'head@udhay.local', 'DIRECTOR', 'MANAGEMENT'],
       ['Sales Head', 'sales.head@udhay.local', 'TEAM_HEAD', 'SALES'],
       ['Sales Executive', 'sales@udhay.local', 'TEAM_MEMBER', 'SALES'],

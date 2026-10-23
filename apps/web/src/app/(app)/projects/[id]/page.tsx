@@ -23,7 +23,7 @@ import { ProductionTab } from '@/components/project/production-tab';
 import { ServiceTab } from '@/components/project/service-tab';
 import { SiteTab } from '@/components/project/site-tab';
 import { ProjectEditForm } from '@/components/project-edit-form';
-import { DueBadge, PriorityBadge, StageBadge, StatusBadge } from '@/components/status';
+import { DemoBadge, DueBadge, PriorityBadge, StageBadge, StatusBadge } from '@/components/status';
 import { StageStepper } from '@/components/stage-stepper';
 import { Button } from '@/components/ui/button';
 import { Badge, Card, CardHeader, EmptyState, Skeleton } from '@/components/ui/card';
@@ -140,6 +140,7 @@ export default function ProjectPage() {
       <Card className="p-4 md:p-5">
         <div className="flex flex-wrap items-center gap-1.5">
           <span className="text-[12px] font-medium text-muted">{p.code}</span>
+          <DemoBadge isDemo={p.isDemo} />
           <StatusBadge status={p.status} />
           <PriorityBadge priority={p.priority} />
           {can('project.update') && (

@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { PageHeader } from '@/components/app-shell';
+import { DemoData } from '@/components/settings/demo-data';
 import { JobsStatus } from '@/components/settings/jobs-status';
 import { RolesEditor } from '@/components/settings/roles-editor';
 import { RulesEditor } from '@/components/settings/rules-editor';
@@ -15,6 +16,7 @@ const TABS = [
   { id: 'stages', label: 'Stage targets', permission: 'settings.manage' },
   { id: 'rules', label: 'Rules', permission: 'settings.manage' },
   { id: 'jobs', label: 'Background jobs', permission: 'settings.manage' },
+  { id: 'demo', label: 'Demo data', permission: 'settings.manage' },
 ] as const;
 
 export default function SettingsPage() {
@@ -51,6 +53,7 @@ export default function SettingsPage() {
       {tab === 'stages' && <StageTargets />}
       {tab === 'rules' && <RulesEditor />}
       {tab === 'jobs' && <JobsStatus />}
+      {tab === 'demo' && <DemoData />}
     </>
   );
 }

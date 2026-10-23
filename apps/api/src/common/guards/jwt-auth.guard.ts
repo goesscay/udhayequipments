@@ -1,9 +1,9 @@
-import { CanActivate, ExecutionContext, Injectable, UnauthorizedException } from '@nestjs/common';
+import { CanActivate, ExecutionContext, ForbiddenException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { JwtService } from '@nestjs/jwt';
 import type { Request } from 'express';
 import { AccessService } from '../../access/access.service';
-import { IS_PUBLIC_KEY } from '../decorators';
+import { ALLOW_TEMP_PASSWORD_KEY, IS_PUBLIC_KEY } from '../decorators';
 import type { AuthUser } from '../types';
 
 @Injectable()
@@ -37,6 +37,14 @@ export class JwtAuthGuard implements CanActivate {
     const user = await this.access.loadAuthUser(sub);
     if (!user) throw new UnauthorizedException();
     req.user = user;
+
+    // A temporary password (new account or admin reset) must be replaced before anything else.
+    if (user.mustChangePassword) {
+      const allowed = this.reflector.getAllAndOverride<boolean>(ALLOW_TEMP_PASSWORD_KEY, [ctx.getHandler(), ctx.getClass()]);
+      if (!allowed) {
+        throw new ForbiddenException({ message: 'Please set a new password first', code: 'PASSWORD_CHANGE_REQUIRED' });
+      }
+    }
     return true;
   }
 }

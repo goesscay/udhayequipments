@@ -12,9 +12,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!loading && !user) router.replace('/login');
+    else if (user?.mustChangePassword) router.replace('/change-password');
   }, [loading, user, router]);
 
-  if (!user) {
+  if (!user || user.mustChangePassword) {
     return (
       <div className="grid min-h-dvh place-items-center">
         <Loader2 className="size-5 animate-spin text-brand" />

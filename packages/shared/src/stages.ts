@@ -31,10 +31,10 @@ export interface StageDef {
 export const STAGES: readonly StageDef[] = [
   { code: 'LEAD', label: 'Lead & Requirement', short: 'Lead', team: 'SALES', slaHours: 72 },
   { code: 'SITE_SURVEY', label: 'Site Survey & Measurement', short: 'Survey', team: 'PROJECT', slaHours: 72 },
-  { code: 'QUOTATION_PREP', label: 'Quotation Preparation', short: 'Quotation', team: 'ADMIN', slaHours: 48 },
+  { code: 'QUOTATION_PREP', label: 'Quotation Preparation', short: 'Quotation', team: 'OPERATIONS', slaHours: 48 },
   { code: 'QUOTATION_SHARED', label: 'Quotation Shared', short: 'Shared', team: 'SALES', slaHours: 24 },
   { code: 'CUSTOMER_DECISION', label: 'Customer Decision', short: 'Decision', team: 'SALES', slaHours: 168 },
-  { code: 'BOQ_DRAWING', label: 'BOQ & Soft Drawing', short: 'BOQ', team: 'ADMIN', slaHours: 72 },
+  { code: 'BOQ_DRAWING', label: 'BOQ & Soft Drawing', short: 'BOQ', team: 'OPERATIONS', slaHours: 72 },
   { code: 'LAYOUT_APPROVAL', label: 'Customer Layout Approval', short: 'Layout OK', team: 'PROJECT', slaHours: 96 },
   { code: 'CAD_DRAWING', label: 'CAD Drawing', short: 'CAD', team: 'CAD', slaHours: 96 },
   { code: 'HEAD_APPROVAL', label: 'Head Approval', short: 'Approval', team: 'MANAGEMENT', slaHours: 24 },

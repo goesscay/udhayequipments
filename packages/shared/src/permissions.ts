@@ -36,6 +36,9 @@ export type Scope = (typeof SCOPES)[number];
 export const ROLE_CODES = [
   'SUPER_ADMIN',
   'ADMIN',
+  'OPERATIONS',
+  'ACCOUNTS',
+  'PURCHASE',
   'DIRECTOR',
   'TEAM_HEAD',
   'TEAM_MEMBER',
@@ -62,6 +65,42 @@ export const DEFAULT_ROLES: Record<
     permissions: all(
       PERMISSION_KEYS.filter((k) => !['role.manage', 'settings.manage', 'cad.approve'].includes(k)),
     ),
+  },
+  OPERATIONS: {
+    name: 'Operations',
+    description: 'Operations team: prepares quotations and BOQs, records payments, no user or role management.',
+    permissions: {
+      'dashboard.view': 'TEAM',
+      'project.view': 'TEAM',
+      'project.update': 'TEAM',
+      'stage.act': 'TEAM',
+      'stage.assign': 'TEAM',
+      'document.view': 'TEAM',
+      'document.upload': 'TEAM',
+      'customer.view': 'ALL',
+      'customer.manage': 'TEAM',
+      'price.view': 'ALL',
+      'payment.manage': 'ALL',
+      'user.view': 'TEAM',
+    },
+  },
+  ACCOUNTS: {
+    name: 'Accounts',
+    description: 'Accounts staff: payments, prices and reports on every project; no workflow actions.',
+    permissions: all([
+      'dashboard.view',
+      'project.view',
+      'document.view',
+      'customer.view',
+      'price.view',
+      'payment.manage',
+      'report.view',
+    ]),
+  },
+  PURCHASE: {
+    name: 'Purchase',
+    description: 'Purchase staff: read-only access to every project and its BOQ and drawings for buying material.',
+    permissions: all(['project.view', 'document.view', 'customer.view', 'price.view']),
   },
   DIRECTOR: {
     name: 'Overall Head',

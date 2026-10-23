@@ -14,7 +14,7 @@ enum TeamCode {
   MANAGEMENT
   SALES
   PROJECT
-  ADMIN
+  OPERATIONS
   CAD
   PRODUCTION
   DISPATCH
@@ -167,15 +167,25 @@ model RolePermission {
 }
 
 model User {
-  id           String    @id @default(cuid())
-  name         String
-  email        String    @unique
-  phone        String?   @unique
-  passwordHash String
-  isActive     Boolean   @default(true)
-  roleId       String
-  teamId       String?
-  lastLoginAt  DateTime?
+  id                 String    @id @default(cuid())
+  name               String
+  /// Optional: staff can sign in with employee code or mobile number instead.
+  email              String?   @unique
+  phone              String?   @unique
+  employeeCode       String?   @unique @db.VarChar(30)
+  displayName        String?   @db.VarChar(80)
+  gender             String?   @db.VarChar(20)
+  department         String?   @db.VarChar(80)
+  employmentType     String?   @db.VarChar(30)
+  dateOfJoining      DateTime? @db.Date
+  dateOfBirth        DateTime? @db.Date
+  passwordHash       String
+  /// Set for new or reset passwords; the user must choose their own before using the app.
+  mustChangePassword Boolean   @default(false)
+  isActive           Boolean   @default(true)
+  roleId             String
+  teamId             String?
+  lastLoginAt        DateTime?
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
   deletedAt    DateTime?
@@ -235,6 +245,7 @@ model Customer {
   city          String?
   address       String?   @db.Text
   gstin         String?   @db.VarChar(20)
+  isDemo        Boolean   @default(false)
   createdById   String
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
@@ -265,6 +276,8 @@ model Project {
   salesOwnerId   String
   createdById    String
   closedAt       DateTime?
+  /// Sample data from Settings, Demo data; removed together in one click.
+  isDemo         Boolean       @default(false)
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
   deletedAt      DateTime?

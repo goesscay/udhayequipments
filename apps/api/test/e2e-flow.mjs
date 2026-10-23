@@ -55,6 +55,7 @@ const as = (token) => ({
   post: (p, b, o) => call(token, 'POST', p, b ?? {}, o).then((r) => r.data),
   patch: (p, b, o) => call(token, 'PATCH', p, b, o).then((r) => r.data),
   put: (p, b, o) => call(token, 'PUT', p, b, o).then((r) => r.data),
+  del: (p, o) => call(token, 'DELETE', p, undefined, o).then((r) => r.data),
   status: (method, p, b) => call(token, method, p, b, { expect: [200, 201, 204, 400, 401, 403, 404, 409] }),
   raw: async (p) => {
     const res = await fetch(`${BASE}/api${p}`, { headers: { Authorization: `Bearer ${token}` } });
@@ -98,7 +99,9 @@ async function phase1() {
   const roles = await admin.get('/roles');
   const teams = await admin.get('/teams');
   const roleId = (code) => roles.find((r) => r.code === code).id;
-  const teamId = (code) => teams.find((t) => t.code === code).id;
+  // The office team was ADMIN before it became OPERATIONS; use whichever this release has.
+  const teamId = (code) =>
+    (teams.find((t) => t.code === code) ?? teams.find((t) => code === 'ADMIN' && t.code === 'OPERATIONS')).id;
 
   const people = {
     office: ['ADMIN', 'ADMIN'],
@@ -184,6 +187,19 @@ async function phase2() {
   assert.equal(perms('DIRECTOR')['report.view'], 'ALL');
   assert.equal(perms('VIEWER')['service.view'], 'ALL');
   ok('new permissions were granted to the existing system roles');
+
+  const teams = await admin.get('/teams');
+  assert.ok(!teams.some((x) => x.code === 'ADMIN'), 'no ADMIN team left');
+  assert.equal(teams.find((x) => x.code === 'OPERATIONS')?.name, 'Operations');
+  const office = (await admin.get('/users')).find((u) => u.email === s.users.office.email);
+  assert.equal(office.team.code, 'OPERATIONS');
+  assert.equal(office.role.code, 'ADMIN');
+  assert.ok(p1.stages.filter((x) => x.stage === 'QUOTATION_PREP' || x.stage === 'BOQ_DRAWING').every((x) => x.team === 'OPERATIONS'));
+  assert.equal(perms('OPERATIONS')['payment.manage'], 'ALL');
+  assert.equal(perms('OPERATIONS')['price.view'], 'ALL');
+  assert.equal(perms('OPERATIONS')['user.manage'], undefined);
+  assert.equal(perms('ADMIN')['user.manage'], 'ALL');
+  ok('Admin team is now Operations (users and stage history moved); Operations role added; Admin role unchanged');
 
   const fresh = await t.sales.post('/projects', { title: 'E2E numbering', customerName: 'E2E Numbering', customerPhone: '9800000003', priority: 'LOW' });
   const n = (code) => Number(code.split('-')[2]);
@@ -341,8 +357,86 @@ async function phase2() {
   assert.equal(rep.service.avgCsat, 5);
   assert.ok(rep.monthly.some((m) => m.collected === 900000));
   ok('reports: stage times, win count, service stats and ₹9,00,000 collected');
+  await people(admin, s);
   await tail(admin, t);
   console.log(`\nPhase 2 OK: ${passed} checks`);
+}
+
+/** Staff import, sign-in by code or mobile, forced password change, new roles, demo data. */
+async function people(admin, s) {
+  const rows = [
+    { employeeCode: 'tst901', name: 'T.TESTER ONE ', displayName: 'Tester', phone: '919800000901', gender: 'Female', department: 'Operations', status: 'Active', employmentType: 'Full Time', dateOfJoining: '2024-01-02', dateOfBirth: '1990-05-06' },
+    { employeeCode: 'TST902', name: 'K.ACCOUNTS PERSON', phone: '9800000902', department: 'Accounts ', status: 'Active' },
+    { employeeCode: 'TST903', name: 'Unknown Department', department: 'Canteen' },
+  ];
+  const preview = await admin.post('/users/import', { rows, dryRun: true });
+  assert.equal(preview.created.length, 2);
+  assert.equal(preview.skipped.length, 1);
+  assert.match(preview.skipped[0].reason, /Unknown department/);
+  assert.equal(preview.created[0].temporaryPassword, '');
+  assert.ok(!(await admin.get('/users')).some((u) => u.employeeCode === 'TST901'), 'preview creates nobody');
+  const imp = await admin.post('/users/import', { rows });
+  const op = imp.created.find((c) => c.employeeCode === 'TST901');
+  const acc = imp.created.find((c) => c.employeeCode === 'TST902');
+  assert.equal(op.name, 'T. Tester One');
+  assert.equal(op.role, 'Operations');
+  assert.equal(op.team, 'Operations');
+  assert.equal(op.phone, '+919800000901');
+  assert.equal(acc.role, 'Accounts');
+  assert.equal(acc.team, null);
+  assert.equal((await admin.post('/users/import', { rows, dryRun: true })).created.length, 0, 're-import skips existing codes');
+  ok('staff import: preview first, departments mapped to team and role, re-import skips existing');
+
+  const opTemp = as(await login('tst901', op.temporaryPassword));
+  const blocked = await opTemp.status('GET', '/projects');
+  assert.equal(blocked.status, 403);
+  assert.equal(blocked.data.code, 'PASSWORD_CHANGE_REQUIRED');
+  const me = await opTemp.get('/auth/me');
+  assert.equal(me.mustChangePassword, true);
+  assert.equal(me.displayName, 'Tester');
+  const changed = await opTemp.post('/auth/change-password', { currentPassword: op.temporaryPassword, newPassword: 'Tester-new-2026' });
+  assert.equal(changed.user.mustChangePassword, false);
+  const opUser = as(changed.accessToken);
+  assert.equal((await opUser.status('GET', '/projects')).status, 200);
+  ok('temporary password blocks the app until changed; sign-in by lowercase employee code works');
+
+  as(await login('98000 00901', 'Tester-new-2026'));
+  const oldPw = await call(null, 'POST', '/auth/login', { login: 'TST901', password: op.temporaryPassword }, { expect: [401, 429] });
+  assert.ok([401, 429].includes(oldPw.status));
+  const profile = await opUser.get('/users/me');
+  assert.equal(profile.gender, 'Female');
+  assert.equal(profile.employmentType, 'Full Time');
+  assert.equal(profile.dateOfJoining.slice(0, 10), '2024-01-02');
+  assert.equal(profile.dateOfBirth.slice(0, 10), '1990-05-06');
+  assert.equal(profile.department, 'Operations');
+  ok('sign-in by mobile number works; old temporary password rejected; profile fields stored');
+
+  const accTemp = as(await login('TST902', acc.temporaryPassword));
+  const accUser = as((await accTemp.post('/auth/change-password', { currentPassword: acc.temporaryPassword, newPassword: 'Accounts-new-2026' })).accessToken);
+  const pay = await accUser.get(`/projects/${s.p1}/payments`);
+  assert.equal(pay.canManage, true);
+  assert.equal((await accUser.status('POST', `/projects/${s.p1}/transitions`, { action: 'CLOSE' })).status, 403);
+  assert.equal((await accUser.status('GET', '/reports/summary')).status, 200);
+  ok('Accounts role: sees and records payments on every project and reports, but cannot move the workflow');
+
+  const before = await admin.get('/settings/demo-data');
+  assert.equal(before.loaded, false);
+  const loaded = await admin.post('/settings/demo-data');
+  assert.equal(loaded.projects, 14);
+  const demoList = await admin.get('/projects?pageSize=100');
+  const demos = demoList.items.filter((p) => p.isDemo);
+  assert.equal(demos.length, 14);
+  assert.ok(demos.every((p) => p.code.startsWith('DEMO-')));
+  assert.ok(demos.some((p) => p.status === 'LOST') && demos.some((p) => p.status === 'ON_HOLD'));
+  const realCodes = demoList.items.filter((p) => !p.isDemo).map((p) => Number(p.code.split('-')[2]));
+  const nextReal = await as(await login(s.users.sales.email, PASSWORD)).post('/projects', { title: 'After demo', customerName: 'Real Customer', customerPhone: '9800000777', priority: 'LOW' });
+  assert.equal(Number(nextReal.code.split('-')[2]), Math.max(...realCodes) + 1, 'demo data does not use real project numbers');
+  assert.equal((await admin.status('POST', '/settings/demo-data')).status, 400, 'cannot load twice');
+  const removed = await admin.del('/settings/demo-data');
+  assert.equal(removed.removedProjects, 14);
+  assert.equal((await admin.get('/settings/demo-data')).customers, 0);
+  assert.ok((await admin.get('/projects?pageSize=100')).items.every((p) => !p.isDemo));
+  ok('demo data: 14 projects across stages load, keep real numbering intact, and remove cleanly');
 }
 
 /** Reports, exports and dashboard checks; also runnable alone on a DB that finished phase 2. */

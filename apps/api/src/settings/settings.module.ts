@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Get, Global, Injectable, Module, Put } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, Global, Injectable, Module, Post, Put } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { PRIORITIES, STAGE_CODES, STAGES, type AppRules, type Priority, type StageCode } from '@udhay/shared';
 import { Type } from 'class-transformer';
@@ -18,6 +18,7 @@ import { CurrentUser, RequirePermissions } from '../common/decorators';
 import type { AuthUser } from '../common/types';
 import { PrismaService } from '../prisma/prisma.module';
 import { AppRulesService } from './app-rules.service';
+import { DemoDataService } from './demo-data.service';
 
 class StageSlaDto {
   @IsIn(STAGE_CODES) stage: StageCode;
@@ -103,7 +104,26 @@ class SettingsController {
   constructor(
     private readonly settings: SettingsService,
     private readonly rules: AppRulesService,
+    private readonly demo: DemoDataService,
   ) {}
+
+  @Get('demo-data')
+  @RequirePermissions('settings.manage')
+  demoStatus() {
+    return this.demo.status();
+  }
+
+  @Post('demo-data')
+  @RequirePermissions('settings.manage')
+  loadDemo(@CurrentUser() user: AuthUser) {
+    return this.demo.load(user);
+  }
+
+  @Delete('demo-data')
+  @RequirePermissions('settings.manage')
+  removeDemo(@CurrentUser() user: AuthUser) {
+    return this.demo.remove(user);
+  }
 
   @Get('rules')
   @RequirePermissions('settings.manage')
@@ -137,5 +157,5 @@ class SettingsController {
 }
 
 @Global()
-@Module({ controllers: [SettingsController], providers: [SettingsService, AppRulesService], exports: [AppRulesService] })
+@Module({ controllers: [SettingsController], providers: [SettingsService, AppRulesService, DemoDataService], exports: [AppRulesService] })
 export class SettingsModule {}

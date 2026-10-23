@@ -39,7 +39,10 @@ export class AccessService {
     return {
       id: u.id,
       name: u.name,
+      displayName: u.displayName,
       email: u.email,
+      employeeCode: u.employeeCode,
+      mustChangePassword: u.mustChangePassword,
       roleCode: u.role.code,
       roleName: u.role.name,
       teamId: u.teamId,
@@ -53,7 +56,10 @@ export class AccessService {
     return {
       id: user.id,
       name: user.name,
+      displayName: user.displayName,
       email: user.email,
+      employeeCode: user.employeeCode,
+      mustChangePassword: user.mustChangePassword,
       role: { code: user.roleCode, name: user.roleName },
       team:
         user.teamId && user.team

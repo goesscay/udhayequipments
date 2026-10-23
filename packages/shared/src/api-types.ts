@@ -9,7 +9,11 @@ import type { WorkflowAction } from './workflow';
 export interface SessionUser {
   id: string;
   name: string;
-  email: string;
+  displayName: string | null;
+  email: string | null;
+  employeeCode: string | null;
+  /** True until the user replaces a temporary password. */
+  mustChangePassword: boolean;
   role: { code: RoleCode | string; name: string };
   team: { id: string; code: TeamCode; name: string } | null;
   permissions: Partial<Record<PermissionKey, Scope>>;
@@ -42,6 +46,8 @@ export interface ProjectListItem {
   salesOwner: UserRef;
   /** null when the viewer lacks price.view */
   estimatedValue: number | null;
+  /** Sample data loaded from Settings → Demo data. */
+  isDemo: boolean;
   updatedAt: string;
 }
 

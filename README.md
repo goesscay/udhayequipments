@@ -71,6 +71,32 @@ Each project gets tabs that appear as it reaches the relevant stage.
 - `pnpm test`: unit tests for the pure logic (SLA levels, item parsing, warranty dates, report maths, CSV, mentions).
 - `apps/api/test/e2e-flow.mjs`: an end-to-end upgrade test. Phase 1 runs against the previous release to create users and a project at Head Approval. Phase 2 runs against the new release on the same database: it checks the migration and new permissions, then walks payments → production → dispatch → snags → handover → service, including every blocked step and permission denial. **Only ever point it at a throwaway database**; it refuses the production domain.
 
+### Teams and roles
+- **Teams** (who owns each workflow stage): Management, Sales, Project, **Operations** (Quotation Preparation and BOQ & Soft Drawing; called "Admin" before 23 Oct 2026), CAD, Production, Dispatch, Support & Service.
+- **System roles:**
+  - **Super Admin:** everything.
+  - **Admin:** all projects, users, payments.
+  - **Operations:** for the Operations team. Covers quotations, BOQ, documents, prices and payments on its team's projects; no user or role management.
+  - **Accounts:** payments, prices and reports on every project; no workflow actions.
+  - **Purchase:** read-only access to every project, its BOQ and drawings.
+  - **Overall Head:** CAD approval and oversight.
+  - **Team Head** and **Team Member:** work within their own team.
+  - **Viewer:** read-only.
+
+### Staff accounts
+- **Sign-in:** people sign in with their **employee code** (e.g. `EMP005`), **mobile number** or email. Email is optional.
+- **Profile fields:** employee code, display name, full name, mobile, email, gender, department, employment type, date of joining, date of birth, status (active/inactive), role and team.
+- **Users → Import from Excel:**
+  - Upload the HR sheet (columns: Code, Employee Name, Display Name, Mobile number, Gender, Department Name, Status, Employment Type, Date of Joining, Date of Birth).
+  - A preview shows each person's mapped team and role before anything is saved.
+  - Importing then creates everyone with a random temporary password, shown once with a CSV download.
+  - Department → team/role: Operations → Operations; Design Engineer → CAD; Project Co-ordinator → Project; Sales Co-ordinator → Sales; Service → Support & Service; Accounts → Accounts role (no team); Purchase → Purchase role (no team).
+  - Everyone starts as a Team Member in their team; promote team heads in Users → Edit.
+- **Temporary passwords:** passwords set by an admin (new user, import or reset) are temporary. The API refuses everything except signing out and changing the password until the person chooses their own.
+
+### Demo data
+Settings → Demo data loads 14 sample projects (codes `DEMO-YYYY-NNNN`, shown with a DEMO badge), spread across every stage. They include payments, job cards, trips, snags, a handover and a service ticket, and are assigned to real staff in each team. Demo data doesn't use real project numbers. **Remove demo data** deletes it all in one go.
+
 ### Notifications (in-app only)
 - `WorkflowService` emits `project.transitioned` / `project.assigned` events after the database transaction commits. `WorkflowNotifier` turns them into notifications:
   - **Handoff:** goes to the stage assignee, or to the whole receiving team if nobody is assigned. CAD approvals go to everyone with `cad.approve`.

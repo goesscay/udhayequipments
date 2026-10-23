@@ -6,6 +6,7 @@ import {
   Building2,
   FolderKanban,
   Inbox,
+  KeyRound,
   LayoutDashboard,
   LogOut,
   Menu,
@@ -157,6 +158,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               >
                 {initials}
               </div>
+              <Link
+                href="/change-password"
+                className="grid h-9 w-full place-items-center text-muted hover:bg-surface hover:text-ink"
+                title="Change password"
+                aria-label="Change password"
+              >
+                <KeyRound className="size-4" />
+              </Link>
               <button
                 onClick={logout}
                 className="grid h-9 w-full place-items-center text-muted hover:bg-surface hover:text-ink"
@@ -170,12 +179,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <div className="flex items-center gap-3 px-2 py-2">
               <div className="grid size-8 place-items-center bg-ink text-[11px] font-semibold text-white">{initials}</div>
               <div className="min-w-0 flex-1">
-                <p className="truncate text-[13px] font-medium">{user?.name}</p>
+                <p className="truncate text-[13px] font-medium">{user?.displayName || user?.name}</p>
                 <p className="truncate text-[11px] text-muted">
                   {user?.role.name}
                   {user?.team ? ` · ${user.team.name}` : ''}
                 </p>
               </div>
+              <Link href="/change-password" className="p-1.5 text-muted hover:bg-surface hover:text-ink" title="Change password" aria-label="Change password">
+                <KeyRound className="size-4" />
+              </Link>
               <button onClick={logout} className="p-1.5 text-muted hover:bg-surface hover:text-ink" title="Sign out">
                 <LogOut className="size-4" />
               </button>

@@ -8,7 +8,10 @@ import { api, refreshSession, setAccessToken, setSessionLostHandler } from './ap
 interface AuthState {
   user: SessionUser | null;
   loading: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  /** `login` is an employee code, mobile number or email. */
+  login: (login: string, password: string) => Promise<void>;
+  /** Adopt a new session, e.g. after changing the password. */
+  setSession: (res: AuthResponse) => void;
   logout: () => Promise<void>;
   can: (permission: PermissionKey) => boolean;
 }
@@ -31,8 +34,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
-  const login = useCallback(async (email: string, password: string) => {
-    const res = await api<AuthResponse>('/auth/login', { method: 'POST', json: { email, password } });
+  const login = useCallback(async (login: string, password: string) => {
+    const res = await api<AuthResponse>('/auth/login', { method: 'POST', json: { login, password } });
     setAccessToken(res.accessToken);
     setUser(res.user);
   }, []);
@@ -46,7 +49,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const can = useCallback((p: PermissionKey) => !!user?.permissions[p], [user]);
 
-  const value = useMemo(() => ({ user, loading, login, logout, can }), [user, loading, login, logout, can]);
+  const setSession = useCallback((res: AuthResponse) => {
+    setAccessToken(res.accessToken);
+    setUser(res.user);
+  }, []);
+
+  const value = useMemo(
+    () => ({ user, loading, login, logout, can, setSession }),
+    [user, loading, login, logout, can, setSession],
+  );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 

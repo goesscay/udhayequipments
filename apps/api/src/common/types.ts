@@ -4,7 +4,10 @@ import type { Prisma, PrismaClient } from '@prisma/client';
 export interface AuthUser {
   id: string;
   name: string;
-  email: string;
+  displayName: string | null;
+  email: string | null;
+  employeeCode: string | null;
+  mustChangePassword: boolean;
   roleCode: string;
   roleName: string;
   teamId: string | null;

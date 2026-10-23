@@ -3,7 +3,9 @@ import { describe, it } from 'node:test';
 import { addMonths } from '../installation/dates';
 import { parseItemLine } from '../production/item-line';
 import { median, monthKey, monthsBetween, parseRange, toCsv } from '../reports/report-math';
+import { mapDepartment, normalizePhone, tidyName } from '@udhay/shared';
 import { extractMentions, plainMentions } from './mentions';
+import { temporaryPassword } from './passwords';
 
 describe('parseItemLine', () => {
   it('reads explicitly marked quantities', () => {
@@ -77,5 +79,43 @@ describe('mentions', () => {
   });
   it('renders plain text', () => {
     assert.equal(plainMentions(body), 'Please check @Ravi Kumar and @Ravi Kumar');
+  });
+});
+
+describe('people helpers', () => {
+  it('normalises Indian mobile numbers from the HR sheet', () => {
+    assert.equal(normalizePhone('917708796590'), '+917708796590');
+    assert.equal(normalizePhone(917708796590), '+917708796590');
+    assert.equal(normalizePhone('77087 96590'), '+917708796590');
+    assert.equal(normalizePhone('07708796590'), '+917708796590');
+    assert.equal(normalizePhone('12'), null);
+  });
+
+  it('tidies uppercase names with initials', () => {
+    assert.equal(tidyName('G.SASIREKHA '), 'G. Sasirekha');
+    assert.equal(tidyName('M.SATHYA SEELAN'), 'M. Sathya Seelan');
+    assert.equal(tidyName('V.NAVEEN KUMAR'), 'V. Naveen Kumar');
+  });
+
+  it('maps every department in the staff sheet to a team and role', () => {
+    assert.deepEqual(mapDepartment('Accounts '), { team: null, role: 'ACCOUNTS' });
+    assert.deepEqual(mapDepartment('Purchase'), { team: null, role: 'PURCHASE' });
+    assert.deepEqual(mapDepartment('Operations'), { team: 'OPERATIONS', role: 'OPERATIONS' });
+    assert.deepEqual(mapDepartment('Design Engineer'), { team: 'CAD', role: 'TEAM_MEMBER' });
+    assert.deepEqual(mapDepartment('Project Co-ordinator'), { team: 'PROJECT', role: 'TEAM_MEMBER' });
+    assert.deepEqual(mapDepartment('Sales Co-ordinator'), { team: 'SALES', role: 'TEAM_MEMBER' });
+    assert.deepEqual(mapDepartment('Service'), { team: 'SERVICE', role: 'TEAM_MEMBER' });
+    assert.equal(mapDepartment('Canteen'), null);
+  });
+
+  it('generates readable temporary passwords that meet the password rule', () => {
+    const seen = new Set<string>();
+    for (let i = 0; i < 200; i++) {
+      const pw = temporaryPassword();
+      assert.match(pw, /^Udh-[A-HJKMNP-Z2-9]{4}-[A-HJKMNP-Z2-9]{4}$/);
+      assert.match(pw, /^(?=.*[A-Za-z])(?=.*\d).{10,128}$/);
+      seen.add(pw);
+    }
+    assert.equal(seen.size, 200);
   });
 });

@@ -35,13 +35,13 @@ export default function LoginPage() {
   } = useForm<LoginInput>({ resolver: zodResolver(loginSchema) });
 
   useEffect(() => {
-    if (user) router.replace(user.permissions['dashboard.view'] ? '/dashboard' : '/queue');
+    if (user) router.replace(user.mustChangePassword ? '/change-password' : user.permissions['dashboard.view'] ? '/dashboard' : '/queue');
   }, [user, router]);
 
   const onSubmit = async (values: LoginInput) => {
     setError(null);
     try {
-      await login(values.email, values.password);
+      await login(values.login, values.password);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Sign in failed');
     }
@@ -90,12 +90,12 @@ export default function LoginPage() {
           <div className="mt-10">
             <p className="text-[11px] font-medium uppercase tracking-[0.28em] text-brand-600">Project Tracker</p>
             <h2 className="mt-2 text-2xl font-semibold tracking-tight">Sign in</h2>
-            <p className="mt-1 text-[13px] text-muted">Use the email and password your administrator gave you.</p>
+            <p className="mt-1 text-[13px] text-muted">Sign in with your employee code (e.g. EMP005), mobile number or email.</p>
           </div>
 
           <form onSubmit={handleSubmit(onSubmit)} className="mt-8 space-y-5">
-            <Field label="Email" error={errors.email?.message}>
-              <Input type="email" autoComplete="username" inputMode="email" className="h-11" {...register('email')} />
+            <Field label="Employee code, mobile or email" error={errors.login?.message}>
+              <Input autoComplete="username" autoCapitalize="characters" spellCheck={false} placeholder="e.g. EMP005" className="h-11" {...register('login')} />
             </Field>
             <Field label="Password" error={errors.password?.message}>
               <div className="relative">

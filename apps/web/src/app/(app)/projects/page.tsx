@@ -16,7 +16,7 @@ import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useState } from 'react';
 import { PageHeader } from '@/components/app-shell';
-import { DueBadge, PriorityBadge, StageBadge, StatusBadge } from '@/components/status';
+import { DemoBadge, DueBadge, PriorityBadge, StageBadge, StatusBadge } from '@/components/status';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Card, EmptyState, Skeleton } from '@/components/ui/card';
 import { Input, Select } from '@/components/ui/form';
@@ -134,7 +134,7 @@ function ProjectsList() {
               <Link key={p.id} href={`/projects/${p.id}`}>
                 <Card className="p-3.5">
                   <div className="flex items-center justify-between gap-2">
-                    <span className="text-[12px] font-medium text-muted">{p.code}</span>
+                    <span className="flex items-center gap-1.5 text-[12px] font-medium text-muted">{p.code} <DemoBadge isDemo={p.isDemo} /></span>
                     <DueBadge startedAt={p.stageStartedAt} dueAt={p.status === 'ACTIVE' ? p.stageDueAt : null} />
                   </div>
                   <p className="mt-1 truncate font-medium">{p.customer.name}</p>
@@ -186,6 +186,7 @@ function ProjectsList() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex flex-wrap gap-1">
+                        <DemoBadge isDemo={p.isDemo} />
                         <StatusBadge status={p.status} />
                         <PriorityBadge priority={p.priority} />
                         {p.status === 'ACTIVE' && <DueBadge startedAt={p.stageStartedAt} dueAt={p.stageDueAt} />}

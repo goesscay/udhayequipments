@@ -43,7 +43,7 @@ export const TRANSITIONS: readonly TransitionDef[] = [
   { from: 'LEAD', action: 'SUBMIT', label: 'Send to Project team', to: 'SITE_SURVEY', permission: act, teamBound: true, tone: 'primary' },
   { from: 'LEAD', action: 'MARK_LOST', label: 'Mark lost', to: null, outcome: 'LOST', permission: act, teamBound: true, reasonRequired: true, tone: 'danger' },
 
-  { from: 'SITE_SURVEY', action: 'SUBMIT', label: 'Send measurements to Admin', to: 'QUOTATION_PREP', permission: act, teamBound: true, requiresDocuments: ['MEASUREMENT'], tone: 'primary' },
+  { from: 'SITE_SURVEY', action: 'SUBMIT', label: 'Send measurements to Operations', to: 'QUOTATION_PREP', permission: act, teamBound: true, requiresDocuments: ['MEASUREMENT'], tone: 'primary' },
 
   { from: 'QUOTATION_PREP', action: 'SUBMIT', label: 'Send quotation to Sales', to: 'QUOTATION_SHARED', permission: act, teamBound: true, requiresDocuments: ['QUOTATION'], tone: 'primary' },
 

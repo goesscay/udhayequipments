@@ -51,6 +51,7 @@ export function toListItem(p: ListRow, showPrice: boolean): ProjectListItem {
     accepted: !!open?.acceptedAt,
     salesOwner: p.salesOwner,
     estimatedValue: showPrice && p.estimatedValue != null ? Number(p.estimatedValue) : null,
+    isDemo: p.isDemo,
     updatedAt: p.updatedAt.toISOString(),
   };
 }

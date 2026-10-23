@@ -1,9 +1,9 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { hash, verify } from '@node-rs/argon2';
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
-import type { AuthResponse } from '@udhay/shared';
+import { normalizePhone, type AuthResponse } from '@udhay/shared';
 import { AccessService } from '../access/access.service';
 import { AuditService } from '../audit/audit.module';
 import type { RequestMeta } from '../common/types';
@@ -16,7 +16,7 @@ export interface IssuedSession extends AuthResponse {
 
 const sha256 = (s: string) => createHash('sha256').update(s).digest('hex');
 
-// Verified against when the email is unknown, so login timing doesn't reveal which emails exist.
+// Verified against when the login is unknown, so login timing doesn't reveal which accounts exist.
 const dummyHash = hash(randomBytes(16).toString('hex'));
 
 @Injectable()
@@ -29,13 +29,22 @@ export class AuthService {
     private readonly audit: AuditService,
   ) {}
 
-  async login(email: string, password: string, meta: RequestMeta): Promise<IssuedSession> {
+  /** `login` is an email, an employee code (e.g. EMP005) or a mobile number. */
+  async login(login: string, password: string, meta: RequestMeta): Promise<IssuedSession> {
+    const id = login.trim();
+    const phone = /^[+\d\s-]{7,20}$/.test(id) ? normalizePhone(id) : null;
     const user = await this.prisma.user.findFirst({
-      where: { email: email.trim().toLowerCase(), deletedAt: null },
+      where: {
+        deletedAt: null,
+        OR: [
+          ...(id.includes('@') ? [{ email: id.toLowerCase() }] : [{ employeeCode: id.toUpperCase() }]),
+          ...(phone ? [{ phone }] : []),
+        ],
+      },
     });
     const valid = await verify(user?.passwordHash ?? (await dummyHash), password).catch(() => false);
     if (!user || !valid || !user.isActive) {
-      throw new UnauthorizedException('Invalid email or password');
+      throw new UnauthorizedException('Invalid login or password');
     }
     await this.prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
     await this.audit.log({ actorId: user.id, entity: 'user', entityId: user.id, action: 'login', ip: meta.ip });
@@ -77,6 +86,22 @@ export class AuthService {
         data: { revokedAt: new Date() },
       });
     }
+  }
+
+  /** Replaces the user's password, ends every other session and returns a fresh one. */
+  async changePassword(userId: string, current: string, next: string, meta: RequestMeta): Promise<IssuedSession> {
+    const user = await this.prisma.user.findUniqueOrThrow({ where: { id: userId } });
+    if (!(await verify(user.passwordHash, current).catch(() => false))) {
+      throw new BadRequestException('Your current password is not correct');
+    }
+    if (current === next) throw new BadRequestException('Choose a different password');
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { passwordHash: await hash(next), mustChangePassword: false },
+    });
+    await this.revokeAll(userId);
+    await this.audit.log({ actorId: userId, entity: 'user', entityId: userId, action: 'password_changed', ip: meta.ip });
+    return this.issue(userId, meta);
   }
 
   revokeAll(userId: string) {

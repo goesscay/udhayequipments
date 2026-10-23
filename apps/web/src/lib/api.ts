@@ -66,6 +66,10 @@ export async function api<T>(path: string, init: ApiInit = {}): Promise<T> {
 
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
+    // A temporary password must be replaced before anything else works.
+    if (res.status === 403 && body.code === 'PASSWORD_CHANGE_REQUIRED' && typeof window !== 'undefined') {
+      if (!window.location.pathname.startsWith('/change-password')) window.location.assign('/change-password');
+    }
     const msg = Array.isArray(body.message) ? body.message.join(', ') : body.message;
     throw new ApiError(res.status, msg || res.statusText || 'Request failed', body);
   }

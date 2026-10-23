@@ -7,6 +7,10 @@ export const IS_PUBLIC_KEY = 'isPublic';
 /** Skip authentication for this route. */
 export const Public = () => SetMetadata(IS_PUBLIC_KEY, true);
 
+export const ALLOW_TEMP_PASSWORD_KEY = 'allowTempPassword';
+/** Reachable while the user still has a temporary password (sign-out, change password, own profile). */
+export const AllowWithTemporaryPassword = () => SetMetadata(ALLOW_TEMP_PASSWORD_KEY, true);
+
 export const PERMISSIONS_KEY = 'permissions';
 /** The user needs every listed permission (any scope). Scope is enforced in services. */
 export const RequirePermissions = (...permissions: PermissionKey[]) =>

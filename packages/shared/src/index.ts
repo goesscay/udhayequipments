@@ -4,5 +4,6 @@ export * from './documents';
 export * from './permissions';
 export * from './workflow';
 export * from './operations';
+export * from './people';
 export * from './schemas';
 export * from './api-types';

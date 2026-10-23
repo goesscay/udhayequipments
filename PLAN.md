@@ -25,10 +25,10 @@ Every role then gets the right view:
 |---|---|---|---|---|---|
 | 1 | **Lead & Requirement** | Sales | Meet customer, capture requirement | Requirement form, cuisine type, seating/covers, budget, photos | → 2 |
 | 2 | **Site Survey & Measurement** | Project | Visit site, measure | Measurement sheet, site photos (geo-tagged), utilities (gas, power, water, exhaust) | → 3 |
-| 3 | **Quotation Preparation** | Admin | Prepare quotation | Quotation PDF (versioned), amount | → 4 |
+| 3 | **Quotation Preparation** | Operations | Prepare quotation | Quotation PDF (versioned), amount | → 4 |
 | 4 | **Quotation Shared** | Sales | Send to customer, follow up | Sent date, follow-up log | → 5 |
 | 5 | **Customer Decision** | Sales | Record outcome | Accepted / Revision requested / Lost (with reason) | Accepted → 6, Revision → 3, Lost → Closed-Lost |
-| 6 | **BOQ & Soft Drawing** | Admin | Prepare BOQ and layout spec | BOQ, soft drawing | → 7 |
+| 6 | **BOQ & Soft Drawing** | Operations | Prepare BOQ and layout spec | BOQ, soft drawing | → 7 |
 | 7 | **Customer Layout Approval** | Project | Present to customer | Customer sign-off (signed copy / OTP), revision notes | Approved → 8, Revision → 6 |
 | 8 | **CAD Drawing** | CAD | Prepare fabrication drawings | CAD files (DWG/PDF), versioned | → 9 |
 | 9 | **Head Approval** | Overall Head | Review CAD | Approve / Reject with comments | Approved → 10, Rejected → 8 |
@@ -50,7 +50,7 @@ Every role then gets the right view:
 ## 3. Enhancements (beyond the brief)
 
 ### High value, recommend for v1
-1. **Payment milestones as gates.** Kitchen projects usually take an advance, a pre-dispatch payment and a final payment. Production should only start after the advance is received, and dispatch only after the pre-dispatch payment. Admin marks payments; the dashboard shows money outstanding per stage. *(Make the gates configurable on/off.)*
+1. **Payment milestones as gates.** Kitchen projects usually take an advance, a pre-dispatch payment and a final payment. Production should only start after the advance is received, and dispatch only after the pre-dispatch payment. Operations (or Admin) marks payments; the dashboard shows money outstanding per stage. *(Make the gates configurable on/off.)*
 2. **Mobile site toolkit.** Camera upload, geo-tagged/time-stamped photos, measurement form, customer signature on screen. The project team works mostly on site.
 3. **Activity timeline & audit log.** Who did what and when, on every project. Nothing can be deleted silently.
 4. **Notifications.** In-app plus email for v1. **WhatsApp** (Meta Cloud API) in v2: "Quotation v2 ready for Sharma Hotel", "CAD approval pending 2 days".
@@ -122,7 +122,7 @@ Field-level rule: **quotation prices and payment amounts are hidden** from Produ
 7. **Live activity feed:** latest handoffs, approvals and rejections.
 
 ### Project detail page
-A header with code, customer, value and RAG status. Under it, a **visual stepper** of all 14 stages (done / current / upcoming, with dates and owner). Tabs: **Timeline · Documents · Tasks/Checklist · Payments · Comments · Service.** A sticky bottom action bar holds the current allowed actions, e.g. *Submit to Admin*, *Approve*, *Request Revision*.
+A header with code, customer, value and RAG status. Under it, a **visual stepper** of all 14 stages (done / current / upcoming, with dates and owner). Tabs: **Timeline · Documents · Tasks/Checklist · Payments · Comments · Service.** A sticky bottom action bar holds the current allowed actions, e.g. *Send to Operations*, *Approve*, *Request Revision*.
 
 ### Team views
 - **My Queue:** cards for items waiting on me, sorted by due date, with one-tap actions.
