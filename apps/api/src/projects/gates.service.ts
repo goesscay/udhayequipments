@@ -25,17 +25,17 @@ export class GatesService {
 
     switch (`${def.from}:${def.action}`) {
       case 'PRODUCTION:COMPLETE': {
-        const items = await db.productionItem.findMany({
-          where: { projectId },
-          select: { status: true, qcStatus: true },
-        });
+        const items = await db.productionItem.findMany({ where: { projectId }, select: { status: true } });
         if (!items.length) return ['Add the production items (job cards) first'];
-        const out: string[] = [];
         const unfinished = items.filter((i) => i.status !== 'DONE').length;
-        const qcOpen = items.filter((i) => i.qcStatus !== 'PASSED').length;
-        if (unfinished) out.push(`${plural(unfinished, 'item')} not finished`);
-        if (qcOpen) out.push(`${plural(qcOpen, 'item')} without a passed quality check`);
-        return out;
+        return unfinished ? [`${plural(unfinished, 'item')} not through all four levels (up to Polish)`] : [];
+      }
+
+      case 'QC:APPROVE': {
+        const items = await db.productionItem.findMany({ where: { projectId }, select: { qcStatus: true } });
+        if (!items.length) return ['There are no production items to check'];
+        const open = items.filter((i) => i.qcStatus !== 'PASSED').length;
+        return open ? [`${plural(open, 'item')} without a passed quality check`] : [];
       }
 
       case 'DISPATCH:DELIVER': {
@@ -48,14 +48,13 @@ export class GatesService {
         return pending ? [`${plural(pending, 'trip')} not delivered yet`] : [];
       }
 
-      case 'INSTALLATION:COMPLETE': {
+      case 'INSTALLATION:HANDOVER': {
+        const out: string[] = [];
         const open = await db.snag.count({ where: { projectId, status: 'OPEN' } });
-        return open ? [`${plural(open, 'open snag')} to close first`] : [];
-      }
-
-      case 'HANDOVER:HANDOVER': {
+        if (open) out.push(`${plural(open, 'open snag')} to close first`);
         const handover = await db.handover.findUnique({ where: { projectId }, select: { id: true } });
-        return handover ? [] : ['Record the handover (customer signature and warranty) first'];
+        if (!handover) out.push('Record the handover (customer sign-off and warranty) first');
+        return out;
       }
 
       default:

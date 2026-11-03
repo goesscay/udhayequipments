@@ -66,11 +66,11 @@ function tabsFor(p: ProjectDetail, canSeePrices: boolean, wf: ResolvedWorkflow):
 function defaultTab(p: ProjectDetail): Tab {
   switch (p.currentStage) {
     case 'PRODUCTION':
+    case 'QC':
       return 'production';
     case 'DISPATCH':
       return 'dispatch';
     case 'INSTALLATION':
-    case 'HANDOVER':
       return 'site';
     case 'SERVICE':
       return 'service';

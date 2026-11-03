@@ -126,7 +126,7 @@ export function SiteTab({
               <FileText /> View / print certificate
             </Link>
           </div>
-        ) : stage === 'HANDOVER' && manage ? (
+        ) : stage === 'INSTALLATION' && manage ? (
           <HandoverForm
             projectId={projectId}
             defaultMonths={data.defaultWarrantyMonths}
@@ -136,7 +136,7 @@ export function SiteTab({
             onDone={refresh}
           />
         ) : (
-          <p className="text-[13px] text-muted">Recorded at the Handover stage with the customer's signature.</p>
+          <p className="text-[13px] text-muted">Recorded at the Installation & Handover stage with the customer's sign-off.</p>
         )}
       </section>
 

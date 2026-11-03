@@ -17,6 +17,7 @@ enum TeamCode {
   OPERATIONS
   CAD
   PRODUCTION
+  QC
   DISPATCH
   SERVICE
 }
@@ -50,9 +51,11 @@ enum Priority {
 
 enum DocumentType {
   REQUIREMENT
+  LAYOUT
   MEASUREMENT
   SITE_PHOTO
   QUOTATION
+  PURCHASE_ORDER
   BOQ
   SOFT_DRAWING
   CUSTOMER_APPROVAL
@@ -83,6 +86,13 @@ enum ItemStatus {
   NOT_STARTED
   IN_PROGRESS
   DONE
+}
+
+enum ProductionLevel {
+  LASER_BENDING
+  FABRICATION
+  WELDING
+  POLISH
 }
 
 enum QcStatus {
@@ -458,6 +468,8 @@ model ProductionItem {
   quantity  Int        @default(1)
   spec      String?    @db.Text
   status    ItemStatus @default(NOT_STARTED)
+  /// Level being worked on (Laser & Bending, Fabrication, Welding, Polish); null before work starts.
+  level     ProductionLevel?
   progress  Int        @default(0)
   qcStatus  QcStatus   @default(PENDING)
   qcNotes   String?    @db.Text

@@ -29,7 +29,27 @@ Sign in with the seed credentials from `apps/api/.env` (`SEED_SUPERADMIN_EMAIL` 
 ## How it works
 
 ### Workflow engine
-- Stages and allowed moves are defined once in `packages/shared/src/workflow.ts` (`TRANSITIONS`).
+- Stages and allowed moves are defined once in `packages/shared/src/workflow.ts` (`TRANSITIONS`). They follow the company process sheet (`UdhayEquipmentProcess.xlsx`, Nov 2026):
+
+  | # | Stage | Team | Hands over to | Needs |
+  |---|---|---|---|---|
+  | 1 | Lead & Requirement | Sales | CAD | |
+  | 2 | Layout Drawing | CAD | Sales | Layout drawing |
+  | 3 | Customer Approval - Layout | Sales | Operations | (revise → back to CAD) |
+  | 4 | Quotation Preparation | Operations | Sales | Quotation |
+  | 5 | Customer Approval - Quotation & PO | Sales | Operations | Purchase order / PO mail |
+  | 6 | BOQ & Soft Drawing | Operations | Project | BOQ, soft drawing |
+  | 7 | Site Survey & Measurement | Project | CAD | Measurement sheet |
+  | 8 | MEP Layout | CAD | Admin | MEP layout / CAD drawing |
+  | 9 | MEP Layout Approval | Admin (`cad.approve`) | CAD | (reject → back to MEP Layout) |
+  | 10 | MEP Layout - Release to Production | CAD | Production | Advance payment (if the rule is on) |
+  | 11 | Production | Production | QC | Every item through Laser & Bending → Fabrication → Welding → Polish |
+  | 12 | Quality Check (QC) | QC | Dispatch | Every item QC-passed (fail → back to Production) |
+  | 13 | Dispatch & Delivery | Dispatch | Project | Trips delivered, proof of delivery |
+  | 14 | Installation & Handover | Project | Support & Service | No open snags, handover recorded |
+  | 15 | Service & Support | Support & Service | | |
+
+  Migration `20261104000000_process_sheet` moved live projects onto this order: early Site Survey → Layout Drawing, old (post-BOQ) Layout Approval → Site Survey, Quotation Shared → Customer Approval - Quotation & PO, Handover → Installation & Handover. Old history keeps the retired stage names (`RETIRED_STAGES`). The previous Settings → Workflow changes were saved as the `workflow.beforeProcessSheet` app setting and reset; added stages were kept.
 - Every stage change goes through `WorkflowService.transition()` (`apps/api/src/projects/workflow.service.ts`), which:
   1. locks the project row
   2. checks permission and team
@@ -44,13 +64,13 @@ Sign in with the seed credentials from `apps/api/.env` (`SEED_SUPERADMIN_EMAIL` 
   - **Hand to a department or person:** give the current stage to any team and/or person. The stage row's team changes, so it shows in that team's queue and its members can act on it. Permission checks use the team holding the open stage, not the stage's default team.
   - The *Assign to* list on the current-stage box shows everyone, grouped by team, for Super Admins.
 - SLA hours per stage are seeded into `StageSetting` and can be changed per stage.
-- **Settings → Workflow** (`settings.manage`): **add new stages**, **change the order** (↑/↓), rename stages and action buttons, move a stage to another team, switch off optional stages (Site Survey, Quotation Shared, Layout Approval, CAD, Head Approval, Dispatch, Installation) and side paths (revisions, rejections, mark lost), and change which documents and reasons each step needs.
+- **Settings → Workflow** (`settings.manage`): **add new stages**, **change the order** (↑/↓), rename stages and action buttons, move a stage to another team, switch off optional stages (Layout Drawing, Customer Approval - Layout, Site Survey, MEP Layout, MEP Layout Approval, Release to Production, QC, Dispatch) and side paths (revisions, rejections, mark lost), and change which documents and reasons each step needs.
   - Only the differences from the built-in workflow are stored, as JSON in `AppSetting` (key `workflow`), and resolved by `resolveWorkflow()` in `packages/shared/src/workflow-config.ts`. The API holds the resolved workflow in memory (`WorkflowConfigService`) and every page reads it from `GET /api/workflow`.
   - A switched-off stage is skipped going forward; return paths into it are hidden. Projects already in it can still finish it.
   - Every main forward step goes to the next stage in use in the configured order. An added stage gets a "Send to <next stage>" step and an optional "Send back" step (with a reason). Added stages have codes like `X_7KQ2MD`; stage columns are `VARCHAR(40)` since migration `20261103000000_custom_stages`.
-  - Order rules (`ORDER_RULES`): Lead first, Service last; Quotation → Quotation Shared → Customer Decision → BOQ → Production → Dispatch → Installation → Handover keep their order. Site Survey, Layout Approval, CAD and Head Approval can move freely. A return path that would now point forward is hidden.
+  - Order rules (`ORDER_RULES`): Lead first, Service last; Layout Drawing → Layout Approval; Quotation → Customer Approval (Quotation & PO) → BOQ → Production; MEP Layout → MEP Approval → Release → Production → QC → Dispatch → Installation & Handover keep their order. Site Survey can move freely. A return path that would now point forward is hidden.
   - An added stage that projects have been through can be switched off but not deleted.
-  - Moving a stage to another team also moves its open work. The advance-payment check runs on any step into Production, so it still applies when Head Approval is off.
+  - Moving a stage to another team also moves its open work. The advance-payment check runs on any step into Production, so it still applies when Release to Production is off.
 
 ### Auth
 - Implemented natively in NestJS: argon2 password hashes, a 15-minute JWT access token held in memory, and a 30-day rotating refresh token in an httpOnly `SameSite=Strict` cookie. Reuse of a rotated token revokes every session of that user.
@@ -69,9 +89,9 @@ Each project gets tabs that appear as it reaches the relevant stage.
 | Tab | Who works in it | What it does | Rule it enforces |
 |---|---|---|---|
 | **Payments** | Admin (`payment.manage`); visible with `price.view` | Advance / before-dispatch / final milestones, receipts (mode + reference), waive, undo | Optional (Settings → Rules): no release to Production without the advance; no dispatch without the before-dispatch payment |
-| **Production** | Production team (`production.manage`) | One job card per equipment item, % progress, QC pass/fail; paste a BOQ list (`3 x Sink unit`, `Sink unit - 3 nos`) | "Production & QC done" needs every item Done and QC-passed |
+| **Production** | Production team (`production.manage`); QC team for checks | One job card per equipment item, moved through the four levels (Laser & Bending, Fabrication, Welding, Polish, Done) with counts per level; paste a BOQ list (`3 x Sink unit`, `Sink unit - 3 nos`). At the QC stage the QC team passes or fails each item. | "Production done" needs every item Done; "QC passed" needs every item QC-passed |
 | **Dispatch** | Dispatch team (`dispatch.manage`) | Trips with vehicle, driver, DC / e-way bill, delivery with on-screen signature or photo of the signed challan; Dispatch board across projects | "Delivered to site" needs every trip delivered |
-| **Site & handover** | Project team (`installation.manage`) | Snag list; handover with customer signature, warranty months, training; printable certificate (`/print/handover/:id`) | Installation complete needs no open snags; handover needs a recorded handover |
+| **Site & handover** | Project team (`installation.manage`) | Snag list; handover with customer signature, warranty months, training; printable certificate (`/print/handover/:id`) | "Handed over" needs no open snags and a recorded handover |
 | **Service** | Service team (`service.manage`) | Tickets (SRV-YYYY-NNNN) with warranty check, priority-based due time, visits, resolution, customer rating | Overdue tickets alert the technician and Service head |
 
 - **Team-owned modules:** a permission with Team/Own scope works only for members of the owning team, while All scope (Admin) works everywhere.
@@ -84,7 +104,7 @@ Each project gets tabs that appear as it reaches the relevant stage.
 - `apps/api/test/e2e-flow.mjs`: an end-to-end upgrade test. Phase 1 runs against the previous release to create users and a project at Head Approval. Phase 2 runs against the new release on the same database: it checks the migration and new permissions, then walks payments → production → dispatch → snags → handover → service, including every blocked step and permission denial. **Only ever point it at a throwaway database**; it refuses the production domain.
 
 ### Teams and roles
-- **Teams** (who owns each workflow stage): Management, Sales, Project, **Operations** (Quotation Preparation and BOQ & Soft Drawing; called "Admin" before 23 Oct 2026), CAD, Production, Dispatch, Support & Service.
+- **Teams** (who owns each workflow stage): Management, Sales, Project, **Operations** (Quotation Preparation and BOQ & Soft Drawing; called "Admin" before 23 Oct 2026), CAD, Production, **Quality Check (QC)** (added Nov 2026; move QC staff into it from Users), Dispatch, Support & Service.
 - **System roles:**
   - **Super Admin:** everything.
   - **Admin:** all projects, users, payments.

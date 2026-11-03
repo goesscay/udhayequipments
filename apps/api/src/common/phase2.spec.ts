@@ -105,6 +105,7 @@ describe('people helpers', () => {
     assert.deepEqual(mapDepartment('Project Co-ordinator'), { team: 'PROJECT', role: 'TEAM_MEMBER' });
     assert.deepEqual(mapDepartment('Sales Co-ordinator'), { team: 'SALES', role: 'TEAM_MEMBER' });
     assert.deepEqual(mapDepartment('Service'), { team: 'SERVICE', role: 'TEAM_MEMBER' });
+    assert.deepEqual(mapDepartment('QC'), { team: 'QC', role: 'TEAM_MEMBER' });
     assert.equal(mapDepartment('Canteen'), null);
   });
 
@@ -123,19 +124,56 @@ describe('people helpers', () => {
 describe('configurable workflow', () => {
   it('matches the built-in workflow when nothing is configured', () => {
     const wf = resolveWorkflow();
-    assert.equal(wf.activeStages.length, 14);
-    assert.equal(wf.find('SITE_SURVEY', 'SUBMIT')?.to, 'QUOTATION_PREP');
-    assert.deepEqual(wf.progress('LEAD'), { step: 1, total: 14 });
+    assert.equal(wf.activeStages.length, 15);
+    assert.equal(wf.find('SITE_SURVEY', 'SUBMIT')?.to, 'CAD_DRAWING');
+    assert.deepEqual(wf.progress('LEAD'), { step: 1, total: 15 });
+  });
+
+  it('follows the company process sheet step by step', () => {
+    const wf = resolveWorkflow();
+    // Stage, responsible team, and who it is handed to (rows 1-15 of UdhayEquipmentProcess.xlsx).
+    const sheet: [string, string, string | null][] = [
+      ['LEAD', 'SALES', 'CAD'],
+      ['LAYOUT_DRAWING', 'CAD', 'SALES'],
+      ['LAYOUT_APPROVAL', 'SALES', 'OPERATIONS'],
+      ['QUOTATION_PREP', 'OPERATIONS', 'SALES'],
+      ['CUSTOMER_DECISION', 'SALES', 'OPERATIONS'],
+      ['BOQ_DRAWING', 'OPERATIONS', 'PROJECT'],
+      ['SITE_SURVEY', 'PROJECT', 'CAD'],
+      ['CAD_DRAWING', 'CAD', 'MANAGEMENT'],
+      ['HEAD_APPROVAL', 'MANAGEMENT', 'CAD'],
+      ['CAD_RELEASE', 'CAD', 'PRODUCTION'],
+      ['PRODUCTION', 'PRODUCTION', 'QC'],
+      ['QC', 'QC', 'DISPATCH'],
+      ['DISPATCH', 'DISPATCH', 'PROJECT'],
+      ['INSTALLATION', 'PROJECT', 'SERVICE'],
+      ['SERVICE', 'SERVICE', null],
+    ];
+    assert.deepEqual(wf.stages.map((s) => s.code), sheet.map(([c]) => c));
+    for (const [code, team, next] of sheet) {
+      assert.equal(wf.stage(code).team, team, code);
+      const forward = wf.from(code).find((t) => t.to && wf.index(t.to) > wf.index(code));
+      assert.equal(forward ? wf.stage(forward.to!).team : null, next, code);
+    }
+    assert.deepEqual(wf.find('CUSTOMER_DECISION', 'ACCEPT')?.requiresDocuments, ['PURCHASE_ORDER']);
+    assert.equal(wf.find('QC', 'REJECT')?.to, 'PRODUCTION');
+  });
+
+  it('still names stages that were merged away, for old history', () => {
+    const wf = resolveWorkflow();
+    assert.equal(wf.stage('QUOTATION_SHARED').label, 'Quotation Shared');
+    assert.equal(wf.stage('HANDOVER').label, 'Handover');
+    assert.equal(wf.index('HANDOVER'), -1);
   });
 
   it('skips switched-off stages going forward and drops returns into them', () => {
     const wf = resolveWorkflow({ stages: { CAD_DRAWING: { enabled: false }, HEAD_APPROVAL: { enabled: false } }, transitions: {} });
-    assert.equal(wf.find('LAYOUT_APPROVAL', 'APPROVE')?.to, 'PRODUCTION');
-    assert.equal(wf.activeStages.length, 12);
-    // A project still in Head Approval can finish it, but can't be sent back to a stage that is off.
-    assert.equal(wf.find('HEAD_APPROVAL', 'APPROVE')?.to, 'PRODUCTION');
+    assert.equal(wf.find('SITE_SURVEY', 'SUBMIT')?.to, 'CAD_RELEASE');
+    assert.equal(wf.activeStages.length, 13);
+    // A project still in MEP Layout Approval can finish it, but can't be sent back to a stage that is off.
+    assert.equal(wf.find('HEAD_APPROVAL', 'APPROVE')?.to, 'CAD_RELEASE');
     assert.equal(wf.find('HEAD_APPROVAL', 'REJECT'), undefined);
-    assert.deepEqual(wf.progress('HEAD_APPROVAL'), { step: 8, total: 12 });
+    assert.deepEqual(wf.progress('HEAD_APPROVAL'), { step: 8, total: 13 });
   });
 
   it('applies renames, teams, documents and switched-off side paths', () => {
@@ -181,8 +219,8 @@ describe('added stages and order', () => {
     order.splice(order.indexOf('PRODUCTION') + 1, 0, 'X_PAINT1');
     const wf = resolveWorkflow({ stages: {}, transitions: {}, custom, order });
     assert.equal(wf.find('PRODUCTION', 'COMPLETE')?.to, 'X_PAINT1');
-    assert.equal(wf.find('X_PAINT1', 'SUBMIT')?.to, 'DISPATCH');
-    assert.equal(wf.find('X_PAINT1', 'SUBMIT')?.label, 'Send to Dispatch & Delivery');
+    assert.equal(wf.find('X_PAINT1', 'SUBMIT')?.to, 'QC');
+    assert.equal(wf.find('X_PAINT1', 'SUBMIT')?.label, 'Send to Quality Check (QC)');
     // "Send back" is off until switched on, then goes to the stage before.
     assert.equal(wf.find('X_PAINT1', 'REQUEST_REVISION'), undefined);
     const on = resolveWorkflow({ stages: {}, transitions: { 'X_PAINT1.REQUEST_REVISION': { enabled: true } }, custom, order });
@@ -194,16 +232,18 @@ describe('added stages and order', () => {
     const order = resolveWorkflow().stages.map((s) => s.code).filter((c) => c !== 'SITE_SURVEY');
     order.splice(order.indexOf('CUSTOMER_DECISION') + 1, 0, 'SITE_SURVEY');
     const wf = resolveWorkflow({ stages: {}, transitions: {}, order });
-    assert.equal(wf.find('LEAD', 'SUBMIT')?.to, 'QUOTATION_PREP');
     assert.equal(wf.find('CUSTOMER_DECISION', 'ACCEPT')?.to, 'SITE_SURVEY');
     assert.equal(wf.find('SITE_SURVEY', 'SUBMIT')?.to, 'BOQ_DRAWING');
+    assert.equal(wf.find('BOQ_DRAWING', 'SUBMIT')?.to, 'CAD_DRAWING');
+    // "Revise BOQ" pointed back to the BOQ, which now comes later.
+    assert.equal(wf.find('SITE_SURVEY', 'REQUEST_REVISION'), undefined);
     assert.deepEqual(workflowProblems({ stages: {}, transitions: {}, order }), []);
   });
 
   it('reports orders that break the built-in dependencies', () => {
     const order = resolveWorkflow().stages.map((s) => s.code);
-    [order[order.indexOf('DISPATCH')], order[order.indexOf('PRODUCTION')]] = ['PRODUCTION', 'DISPATCH'];
-    assert.deepEqual(workflowProblems({ stages: {}, transitions: {}, order }), ['Production & QC has to come before Dispatch & Delivery.']);
+    [order[order.indexOf('DISPATCH')], order[order.indexOf('QC')]] = ['QC', 'DISPATCH'];
+    assert.deepEqual(workflowProblems({ stages: {}, transitions: {}, order }), ['Quality Check (QC) has to come before Dispatch & Delivery.']);
     const moved = order.filter((c) => c !== 'LEAD').concat('LEAD');
     assert.ok(workflowProblems({ stages: {}, transitions: {}, order: moved }).some((p) => p.includes('first')));
   });
@@ -217,9 +257,9 @@ describe('added stages and order', () => {
     });
     assert.deepEqual(cfg.custom?.map((c) => c.code), ['X_PAINT1']);
     const codes = resolveWorkflow(cfg).stages.map((s) => s.code);
-    assert.equal(codes.length, 15);
+    assert.equal(codes.length, 16);
     // Missing built-in stages go back after the stage before them, keeping added stages where they were.
-    assert.deepEqual(codes.slice(0, 3), ['LEAD', 'X_PAINT1', 'SITE_SURVEY']);
+    assert.deepEqual(codes.slice(0, 3), ['LEAD', 'X_PAINT1', 'LAYOUT_DRAWING']);
     assert.equal(codes.at(-1), 'SERVICE');
   });
 });

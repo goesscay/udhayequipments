@@ -54,7 +54,7 @@ class DashboardService {
       this.prisma.project.count({ where: active }),
       this.prisma.project.count({ where: overdue }),
       count({ status: 'ON_HOLD' }),
-      count({ status: 'ACTIVE', currentStage: { in: ['QUOTATION_SHARED', 'CUSTOMER_DECISION', 'LAYOUT_APPROVAL'] } }),
+      count({ status: 'ACTIVE', currentStage: { in: ['LAYOUT_APPROVAL', 'CUSTOMER_DECISION'] } }),
       count({ status: 'ACTIVE', currentStage: 'PRODUCTION' }),
       count({ status: 'ACTIVE', currentStage: 'DISPATCH' }),
       showPrice ? this.prisma.project.aggregate({ where: active, _sum: { estimatedValue: true } }) : null,

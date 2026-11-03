@@ -20,6 +20,23 @@ export const PAYMENT_MODES = ['Bank transfer', 'UPI', 'Cheque', 'Cash', 'Card', 
 export const ITEM_STATUSES = ['NOT_STARTED', 'IN_PROGRESS', 'DONE'] as const;
 export type ItemStatus = (typeof ITEM_STATUSES)[number];
 
+/** The four levels every production item goes through, in order. */
+export const PRODUCTION_LEVELS = ['LASER_BENDING', 'FABRICATION', 'WELDING', 'POLISH'] as const;
+export type ProductionLevel = (typeof PRODUCTION_LEVELS)[number];
+export const PRODUCTION_LEVEL_LABELS: Record<ProductionLevel, string> = {
+  LASER_BENDING: 'Laser & Bending',
+  FABRICATION: 'Fabrication',
+  WELDING: 'Welding',
+  POLISH: 'Polish',
+};
+
+/** Item progress: each level is a quarter; an item at a level is part-way through it. */
+export function itemProgress(status: ItemStatus, level: ProductionLevel | null): number {
+  if (status === 'DONE') return 100;
+  if (status === 'NOT_STARTED' || !level) return 0;
+  return PRODUCTION_LEVELS.indexOf(level) * 25 + 12;
+}
+
 export const QC_STATUSES = ['PENDING', 'PASSED', 'FAILED'] as const;
 export type QcStatus = (typeof QC_STATUSES)[number];
 
@@ -82,6 +99,8 @@ export interface ProductionItemRow {
   quantity: number;
   spec: string | null;
   status: ItemStatus;
+  /** Level being worked on while in progress (Polish once done); null before work starts. */
+  level: ProductionLevel | null;
   progress: number;
   qcStatus: QcStatus;
   qcNotes: string | null;
@@ -93,8 +112,15 @@ export interface ProductionSummary {
   items: ProductionItemRow[];
   /** Weighted by quantity, 0–100. */
   progress: number;
+  /** How many items are not started, at each level, or done. */
+  counts: Record<'NOT_STARTED' | ProductionLevel | 'DONE', number>;
+  /** Every item has been through all four levels. */
+  readyForQc: boolean;
   readyForDispatch: boolean;
+  /** Production team: add items and move them through the levels. */
   canManage: boolean;
+  /** QC team, while the project is at the QC stage: pass or fail items. */
+  canQc: boolean;
 }
 
 export interface DispatchTripRow {

@@ -1,20 +1,37 @@
 'use client';
 
 import { useMutation, useQuery } from '@tanstack/react-query';
-import type { ItemStatus, ProductionItemRow, ProductionSummary } from '@udhay/shared';
-import { CheckCircle2, ClipboardPaste, Plus, Trash2, XCircle } from 'lucide-react';
+import {
+  PRODUCTION_LEVELS,
+  PRODUCTION_LEVEL_LABELS,
+  type ProductionItemRow,
+  type ProductionLevel,
+  type ProductionSummary,
+} from '@udhay/shared';
+import { Check, CheckCircle2, ClipboardPaste, Plus, Trash2, XCircle } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Badge, EmptyState, Skeleton } from '@/components/ui/card';
-import { Field, Input, Select, Textarea } from '@/components/ui/form';
+import { Field, Input, Textarea } from '@/components/ui/form';
 import { Sheet } from '@/components/ui/sheet';
 import { api } from '@/lib/api';
-import { formatDate } from '@/lib/utils';
+import { cn, formatDate } from '@/lib/utils';
 import { ReasonOnly } from './payments-tab';
 import { Notice, ProgressBar, useProjectRefresh } from './shared';
 
-const STATUS_LABEL: Record<ItemStatus, string> = { NOT_STARTED: 'Not started', IN_PROGRESS: 'In progress', DONE: 'Done' };
+/** Where an item is: before the first level, at one of the four, or through all of them. */
+function stepOf(i: ProductionItemRow): number {
+  if (i.status === 'DONE') return PRODUCTION_LEVELS.length;
+  if (i.status === 'NOT_STARTED' || !i.level) return -1;
+  return PRODUCTION_LEVELS.indexOf(i.level);
+}
+
+function itemState(i: ProductionItemRow): string {
+  if (i.status === 'DONE') return 'All levels done';
+  if (i.status === 'NOT_STARTED' || !i.level) return 'Not started';
+  return `At ${PRODUCTION_LEVEL_LABELS[i.level]}`;
+}
 
 export function ProductionTab({ projectId, active }: { projectId: string; active: boolean }) {
   const refresh = useProjectRefresh(projectId);
@@ -35,8 +52,10 @@ export function ProductionTab({ projectId, active }: { projectId: string; active
 
   if (isLoading || !data) return <Skeleton className="m-4 h-40" />;
   const manage = data.canManage && active;
-  const done = data.items.filter((i) => i.status === 'DONE').length;
+  const qc = data.canQc && active;
   const passed = data.items.filter((i) => i.qcStatus === 'PASSED').length;
+  const patch = (i: ProductionItemRow, json: object) =>
+    act.mutate({ path: `/production/items/${i.id}`, method: 'PATCH', json });
 
   return (
     <div>
@@ -44,11 +63,28 @@ export function ProductionTab({ projectId, active }: { projectId: string; active
         <div className="flex items-center justify-between text-[13px]">
           <span className="font-medium">Overall progress</span>
           <span className="tabular text-muted">
-            {data.progress}% · {done}/{data.items.length} done · {passed} QC passed
+            {data.progress}% · {data.counts.DONE}/{data.items.length} done · {passed} QC passed
           </span>
         </div>
         <ProgressBar value={data.progress} tone={data.readyForDispatch ? 'ok' : 'brand'} />
-        {data.readyForDispatch && <Notice tone="green">All items finished and quality-checked. Ready for dispatch.</Notice>}
+        {data.items.length > 0 && (
+          <div className="grid grid-cols-3 gap-1.5 pt-1 text-center sm:grid-cols-6">
+            {(['NOT_STARTED', ...PRODUCTION_LEVELS, 'DONE'] as const).map((k) => (
+              <div key={k} className="rounded-lg border bg-surface px-1.5 py-1">
+                <p className="tabular text-[15px] font-semibold">{data.counts[k]}</p>
+                <p className="text-[11px] leading-tight text-muted">
+                  {k === 'NOT_STARTED' ? 'Not started' : k === 'DONE' ? 'Done' : PRODUCTION_LEVEL_LABELS[k]}
+                </p>
+              </div>
+            ))}
+          </div>
+        )}
+        {data.readyForDispatch ? (
+          <Notice tone="green">All items finished and quality-checked. Ready for dispatch.</Notice>
+        ) : data.readyForQc ? (
+          <Notice tone="green">Every item has been through all four levels. Ready for QC.</Notice>
+        ) : null}
+        {qc && <Notice>Check each item, then pass or fail it. Failed items go back to Production.</Notice>}
         {manage && (
           <div className="flex flex-wrap gap-2 pt-1">
             <Button variant="secondary" onClick={() => setAdding(true)}>
@@ -77,56 +113,21 @@ export function ProductionTab({ projectId, active }: { projectId: string; active
                 <QcBadge item={i} />
               </div>
 
-              {manage ? (
-                <div className="flex flex-wrap items-center gap-2">
-                  <Select
-                    className="h-8 w-36 text-[13px]"
-                    value={i.status}
-                    onChange={(e) => act.mutate({ path: `/production/items/${i.id}`, method: 'PATCH', json: { status: e.target.value } })}
-                  >
-                    {Object.entries(STATUS_LABEL).map(([v, l]) => (
-                      <option key={v} value={v}>{l}</option>
-                    ))}
-                  </Select>
-                  <input
-                    type="range"
-                    min={0}
-                    max={100}
-                    step={10}
-                    defaultValue={i.progress}
-                    key={`${i.id}-${i.progress}`}
-                    onPointerUp={(e) => {
-                      const v = Number((e.target as HTMLInputElement).value);
-                      if (v !== i.progress) act.mutate({ path: `/production/items/${i.id}`, method: 'PATCH', json: { progress: v } });
-                    }}
-                    onKeyUp={(e) => {
-                      const v = Number((e.target as HTMLInputElement).value);
-                      if (v !== i.progress) act.mutate({ path: `/production/items/${i.id}`, method: 'PATCH', json: { progress: v } });
-                    }}
-                    className="flex-1 accent-[#B8862B]"
-                    aria-label={`${i.name} progress`}
-                  />
-                  <span className="tabular w-10 text-right text-[12px] text-muted">{i.progress}%</span>
-                </div>
-              ) : (
-                <div className="flex items-center gap-2">
-                  <ProgressBar value={i.progress} className="flex-1" />
-                  <span className="tabular text-[12px] text-muted">{STATUS_LABEL[i.status]}</span>
-                </div>
-              )}
+              <LevelSteps item={i} onPick={manage ? (json) => patch(i, json) : undefined} />
 
-              {manage && (
+              {(manage || qc) && (
                 <div className="flex flex-wrap gap-1.5">
-                  {i.status === 'DONE' && i.qcStatus !== 'PASSED' && (
+                  {qc && i.status === 'DONE' && i.qcStatus !== 'PASSED' && (
                     <Button size="sm" onClick={() => act.mutate({ path: `/production/items/${i.id}/qc`, json: { result: 'PASSED' } })}>
                       <CheckCircle2 /> Pass QC
                     </Button>
                   )}
-                  {i.status === 'DONE' && (
+                  {qc && i.status === 'DONE' && (
                     <Button size="sm" variant="ghost" className="text-bad" onClick={() => setFailing(i)}>
                       <XCircle /> Fail QC
                     </Button>
                   )}
+                  {manage && (
                   <Button
                     size="sm"
                     variant="ghost"
@@ -136,6 +137,7 @@ export function ProductionTab({ projectId, active }: { projectId: string; active
                   >
                     <Trash2 />
                   </Button>
+                  )}
                 </div>
               )}
             </li>
@@ -176,6 +178,63 @@ export function ProductionTab({ projectId, active }: { projectId: string; active
           />
         )}
       </Sheet>
+    </div>
+  );
+}
+
+/**
+ * The four production levels as steps. Production taps the level an item is at, or Done once
+ * Polish is finished; everyone else sees where it is.
+ */
+function LevelSteps({ item, onPick }: { item: ProductionItemRow; onPick?: (json: { level?: ProductionLevel; status?: 'DONE' | 'NOT_STARTED' }) => void }) {
+  const at = stepOf(item);
+  const steps = [...PRODUCTION_LEVELS.map((l) => ({ key: l, label: PRODUCTION_LEVEL_LABELS[l] })), { key: 'DONE', label: 'Done' }];
+  return (
+    <div className="space-y-1">
+      <div className="flex gap-1" role="group" aria-label={`${item.name} production level`}>
+        {steps.map((st, idx) => {
+          const passedStep = idx < at || (st.key === 'DONE' && at === PRODUCTION_LEVELS.length);
+          const current = idx === at && st.key !== 'DONE';
+          const cls = cn(
+            'flex min-h-8 flex-1 items-center justify-center gap-1 rounded-md border px-1 text-center text-[11px] leading-tight',
+            passedStep && 'border-transparent bg-ok/15 text-ok',
+            current && 'border-brand bg-brand/10 font-semibold text-ink',
+            !passedStep && !current && 'bg-white text-muted',
+            onPick && 'hover:border-brand/60',
+          );
+          const content = (
+            <>
+              {passedStep && <Check className="size-3 shrink-0" />}
+              {st.label}
+            </>
+          );
+          if (!onPick) return <span key={st.key} className={cls}>{content}</span>;
+          const isCurrent = st.key === 'DONE' ? at === PRODUCTION_LEVELS.length : current;
+          return (
+            <button
+              key={st.key}
+              type="button"
+              className={cls}
+              aria-pressed={isCurrent}
+              title={st.key === 'DONE' ? 'Mark all four levels done' : `Item is at ${st.label}`}
+              onClick={() => {
+                if (isCurrent) return;
+                onPick(st.key === 'DONE' ? { status: 'DONE' } : { level: st.key as ProductionLevel });
+              }}
+            >
+              {content}
+            </button>
+          );
+        })}
+      </div>
+      <div className="flex items-center justify-between text-[12px] text-muted">
+        <span>{itemState(item)}</span>
+        {onPick && at >= 0 && (
+          <button type="button" className="underline" onClick={() => onPick({ status: 'NOT_STARTED' })}>
+            Reset
+          </button>
+        )}
+      </div>
     </div>
   );
 }

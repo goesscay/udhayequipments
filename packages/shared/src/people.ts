@@ -27,6 +27,9 @@ export const DEPARTMENT_MAP: Record<string, { team: TeamCode | null; role: RoleC
   sales: { team: 'SALES', role: 'TEAM_MEMBER' },
   service: { team: 'SERVICE', role: 'TEAM_MEMBER' },
   production: { team: 'PRODUCTION', role: 'TEAM_MEMBER' },
+  qc: { team: 'QC', role: 'TEAM_MEMBER' },
+  'quality check': { team: 'QC', role: 'TEAM_MEMBER' },
+  'quality control': { team: 'QC', role: 'TEAM_MEMBER' },
   dispatch: { team: 'DISPATCH', role: 'TEAM_MEMBER' },
   management: { team: 'MANAGEMENT', role: 'DIRECTOR' },
 };
@@ -40,6 +43,7 @@ export const DEPARTMENTS = [
   'Sales Co-ordinator',
   'Service',
   'Production',
+  'QC',
   'Dispatch',
   'Management',
 ] as const;

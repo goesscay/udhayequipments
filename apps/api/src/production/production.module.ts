@@ -14,7 +14,15 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import type { Prisma } from '@prisma/client';
-import { ITEM_STATUSES, type ItemStatus, type ProductionItemRow, type ProductionSummary } from '@udhay/shared';
+import {
+  ITEM_STATUSES,
+  PRODUCTION_LEVELS,
+  itemProgress,
+  type ItemStatus,
+  type ProductionItemRow,
+  type ProductionLevel,
+  type ProductionSummary,
+} from '@udhay/shared';
 import { Type } from 'class-transformer';
 import {
   ArrayMaxSize,
@@ -52,7 +60,8 @@ class UpdateItemDto {
   @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(9999) quantity?: number;
   @IsOptional() @IsString() @MaxLength(4000) spec?: string;
   @IsOptional() @IsIn(ITEM_STATUSES) status?: ItemStatus;
-  @IsOptional() @Type(() => Number) @IsInt() @Min(0) @Max(100) progress?: number;
+  /** Move the item to this level (Laser & Bending, Fabrication, Welding, Polish). */
+  @IsOptional() @IsIn(PRODUCTION_LEVELS) level?: ProductionLevel;
 }
 
 class QcDto {
@@ -70,6 +79,7 @@ function toRow(i: ItemRow): ProductionItemRow {
     quantity: i.quantity,
     spec: i.spec,
     status: i.status,
+    level: i.level,
     progress: i.progress,
     qcStatus: i.qcStatus,
     qcNotes: i.qcNotes,
@@ -93,13 +103,19 @@ class ProductionService {
       orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
       include: itemInclude,
     });
+    const project = await this.prisma.project.findUniqueOrThrow({ where: { id: projectId }, select: { currentStage: true } });
     const totalQty = items.reduce((a, i) => a + i.quantity, 0);
     const progress = totalQty ? Math.round(items.reduce((a, i) => a + i.progress * i.quantity, 0) / totalQty) : 0;
+    const counts: ProductionSummary['counts'] = { NOT_STARTED: 0, LASER_BENDING: 0, FABRICATION: 0, WELDING: 0, POLISH: 0, DONE: 0 };
+    for (const i of items) counts[i.status === 'IN_PROGRESS' ? (i.level ?? 'LASER_BENDING') : i.status]++;
     return {
       items: items.map(toRow),
       progress,
+      counts,
+      readyForQc: items.length > 0 && items.every((i) => i.status === 'DONE'),
       readyForDispatch: items.length > 0 && items.every((i) => i.status === 'DONE' && i.qcStatus === 'PASSED'),
       canManage: this.access.canWorkAs(user, 'production.manage', 'PRODUCTION'),
+      canQc: project.currentStage === 'QC' && this.access.canWorkAs(user, 'production.manage', 'QC'),
     };
   }
 
@@ -128,14 +144,15 @@ class ProductionService {
   async update(user: AuthUser, id: string, dto: UpdateItemDto) {
     const item = await this.find(user, id);
     let status = dto.status ?? item.status;
-    let progress = dto.progress ?? item.progress;
-    // Keep status and progress consistent whichever one was changed.
-    if (dto.status === 'DONE') progress = 100;
-    else if (dto.status === 'NOT_STARTED') progress = 0;
-    else if (dto.progress !== undefined && dto.status === undefined) {
-      status = progress >= 100 ? 'DONE' : progress > 0 ? 'IN_PROGRESS' : 'NOT_STARTED';
-    }
-    if (status === 'IN_PROGRESS' && progress >= 100) progress = 95;
+    let level = item.level;
+    // Picking a level puts the item there; Done means it has been through Polish.
+    if (dto.level) {
+      status = 'IN_PROGRESS';
+      level = dto.level;
+    } else if (dto.status === 'DONE') level = 'POLISH';
+    else if (dto.status === 'NOT_STARTED') level = null;
+    else if (dto.status === 'IN_PROGRESS') level = item.level ?? 'LASER_BENDING';
+    const progress = itemProgress(status, level);
 
     const contentChanged = dto.name !== undefined || dto.quantity !== undefined || dto.spec !== undefined;
     // Work that changes after QC must be checked again.
@@ -148,17 +165,23 @@ class ProductionService {
         quantity: dto.quantity,
         spec: dto.spec === undefined ? undefined : dto.spec.trim() || null,
         status,
+        level,
         progress,
         ...(resetQc ? { qcStatus: 'PENDING', qcById: null, qcAt: null } : {}),
       },
     });
-    await this.audit.log({ actorId: user.id, entity: 'production_item', entityId: id, action: 'update', data: { status, progress, resetQc } });
+    await this.audit.log({ actorId: user.id, entity: 'production_item', entityId: id, action: 'update', data: { status, level, progress, resetQc } });
   }
 
   async qc(user: AuthUser, id: string, dto: QcDto) {
-    const item = await this.find(user, id);
+    const item = await this.prisma.productionItem.findUnique({ where: { id } });
+    if (!item) throw new NotFoundException('Item not found');
+    this.access.requireWorkAs(user, 'production.manage', 'QC');
+    const project = await this.access.visibleProject(user, item.projectId);
+    if (project.status !== 'ACTIVE') throw new BadRequestException('Project is not active');
+    if (project.currentStage !== 'QC') throw new BadRequestException('Quality checks are done at the QC stage');
     if (dto.result === 'PASSED' && item.status !== 'DONE') {
-      throw new BadRequestException('Mark the item as done before passing QC');
+      throw new BadRequestException('The item has not been through all four levels yet');
     }
     if (dto.result === 'FAILED' && !dto.notes?.trim()) throw new BadRequestException('Say what failed');
     await this.prisma.productionItem.update({
@@ -168,8 +191,8 @@ class ProductionService {
         qcNotes: dto.notes?.trim() || null,
         qcById: user.id,
         qcAt: new Date(),
-        // A failed check sends the item back to work.
-        ...(dto.result === 'FAILED' ? { status: 'IN_PROGRESS', progress: Math.min(item.progress, 90) } : {}),
+        // A failed check sends the item back to work, at the last level (Polish) unless Production moves it.
+        ...(dto.result === 'FAILED' ? { status: 'IN_PROGRESS', level: 'POLISH', progress: itemProgress('IN_PROGRESS', 'POLISH') } : {}),
       },
     });
     await this.audit.log({ actorId: user.id, entity: 'production_item', entityId: id, action: `qc_${dto.result.toLowerCase()}`, data: { notes: dto.notes ?? null } });

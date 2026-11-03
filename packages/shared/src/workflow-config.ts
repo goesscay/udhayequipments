@@ -1,5 +1,5 @@
 import { DOCUMENT_TYPES, type DocumentType } from './documents';
-import { STAGES, STAGE_CODES, stageIndex, type BuiltinStageCode, type StageCode, type StageDef } from './stages';
+import { RETIRED_STAGES, STAGES, STAGE_CODES, stageIndex, type BuiltinStageCode, type StageCode, type StageDef } from './stages';
 import { TEAMS, type TeamCode } from './teams';
 import { TRANSITIONS, type TransitionDef, type WorkflowAction } from './workflow';
 
@@ -46,16 +46,17 @@ export const EMPTY_WORKFLOW_CONFIG: WorkflowConfig = { stages: {}, transitions: 
 
 /** Built-in stages a company can leave out. The rest carry quotations, production or warranty and always run. */
 export const SKIPPABLE_STAGES: readonly StageCode[] = [
-  'SITE_SURVEY',
-  'QUOTATION_SHARED',
+  'LAYOUT_DRAWING',
   'LAYOUT_APPROVAL',
+  'SITE_SURVEY',
   'CAD_DRAWING',
   'HEAD_APPROVAL',
+  'CAD_RELEASE',
+  'QC',
   'DISPATCH',
-  'INSTALLATION',
 ];
 
-/** Head Approval is decided by permission (cad.approve), not by a team, so its team is fixed. */
+/** MEP Layout Approval is decided by permission (cad.approve), not by a team, so its team is fixed. */
 export const FIXED_TEAM_STAGES: readonly StageCode[] = ['HEAD_APPROVAL'];
 
 /** Side paths (revisions, rejections, lost deals) that can be switched off. Main forward steps cannot. */
@@ -63,17 +64,20 @@ export const OPTIONAL_ACTIONS: readonly WorkflowAction[] = ['REQUEST_REVISION', 
 
 /**
  * Built-in stages that must stay in this order, because later ones use what earlier ones produce
- * (a quotation before it is shared, a BOQ before production, goods made before they are delivered).
- * Lead is always first and Service always last.
+ * (a quotation before the customer approves it, a BOQ before production, goods checked before they
+ * are delivered). Lead is always first and Service always last.
  */
 export const ORDER_RULES: readonly [BuiltinStageCode, BuiltinStageCode][] = [
-  ['QUOTATION_PREP', 'QUOTATION_SHARED'],
-  ['QUOTATION_SHARED', 'CUSTOMER_DECISION'],
+  ['LAYOUT_DRAWING', 'LAYOUT_APPROVAL'],
+  ['QUOTATION_PREP', 'CUSTOMER_DECISION'],
   ['CUSTOMER_DECISION', 'BOQ_DRAWING'],
   ['BOQ_DRAWING', 'PRODUCTION'],
-  ['PRODUCTION', 'DISPATCH'],
+  ['CAD_DRAWING', 'HEAD_APPROVAL'],
+  ['HEAD_APPROVAL', 'CAD_RELEASE'],
+  ['CAD_RELEASE', 'PRODUCTION'],
+  ['PRODUCTION', 'QC'],
+  ['QC', 'DISPATCH'],
   ['DISPATCH', 'INSTALLATION'],
-  ['INSTALLATION', 'HANDOVER'],
 ];
 
 export const FIRST_STAGE: StageCode = 'LEAD';
@@ -268,7 +272,14 @@ export function workflowProblems(config: WorkflowConfig): string[] {
 
 function fallbackStage(code: StageCode): ResolvedStage {
   // A stage that was removed from the workflow but still appears in old history.
-  const def: StageDef = { code, label: code, short: code.slice(0, SHORT_MAX), team: 'MANAGEMENT', slaHours: CUSTOM_SLA_DEFAULT };
+  const retired = RETIRED_STAGES[code];
+  const def: StageDef = {
+    code,
+    label: retired?.label ?? code,
+    short: retired?.short ?? code.slice(0, SHORT_MAX),
+    team: 'MANAGEMENT',
+    slaHours: CUSTOM_SLA_DEFAULT,
+  };
   return { ...def, enabled: false, skippable: true, teamFixed: false, custom: true, defaults: def };
 }
 

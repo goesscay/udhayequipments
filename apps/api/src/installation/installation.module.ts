@@ -136,7 +136,9 @@ class InstallationService {
 
   async recordHandover(user: AuthUser, projectId: string, dto: HandoverDto) {
     const project = await this.guardProject(user, projectId);
-    if (project.currentStage !== 'HANDOVER') throw new BadRequestException('The project is not at the Handover stage');
+    if (project.currentStage !== 'INSTALLATION') {
+      throw new BadRequestException('The project is not at the Installation & Handover stage');
+    }
     if (await this.prisma.handover.findUnique({ where: { projectId } })) throw new ConflictException('Handover already recorded');
     const doc = await this.prisma.document.findFirst({
       where: { id: dto.certificateDocumentId, projectId, type: 'HANDOVER_CERT', deletedAt: null },

@@ -1,8 +1,10 @@
 export const DOCUMENT_TYPES = [
   'REQUIREMENT',
+  'LAYOUT',
   'MEASUREMENT',
   'SITE_PHOTO',
   'QUOTATION',
+  'PURCHASE_ORDER',
   'BOQ',
   'SOFT_DRAWING',
   'CUSTOMER_APPROVAL',
@@ -20,13 +22,15 @@ export type DocumentType = (typeof DOCUMENT_TYPES)[number];
 
 export const DOCUMENT_LABELS: Record<DocumentType, string> = {
   REQUIREMENT: 'Requirement sheet',
+  LAYOUT: 'Layout drawing',
   MEASUREMENT: 'Measurement sheet',
   SITE_PHOTO: 'Site photo',
   QUOTATION: 'Quotation',
+  PURCHASE_ORDER: 'Purchase order / PO mail',
   BOQ: 'BOQ',
   SOFT_DRAWING: 'Soft drawing',
   CUSTOMER_APPROVAL: 'Customer approval',
-  CAD: 'CAD drawing',
+  CAD: 'MEP layout / CAD drawing',
   QC_REPORT: 'QC report',
   DELIVERY_CHALLAN: 'Delivery challan',
   POD: 'Proof of delivery',

@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
-import { STAGES, STAGE_BY_CODE, stageIndex, type Priority, type StageCode, type TeamCode } from '@udhay/shared';
+import { STAGES, STAGE_BY_CODE, itemProgress, stageIndex, type Priority, type ProductionLevel, type StageCode, type TeamCode } from '@udhay/shared';
 import { AuditService } from '../audit/audit.module';
 import { nextCode } from '../common/counter';
 import type { AuthUser } from '../common/types';
@@ -28,16 +28,16 @@ interface DemoProject {
 /** Fictional customers. Names are invented and do not refer to real businesses. */
 const PROJECTS: DemoProject[] = [
   { customer: 'Saffron Court Hotel', contact: 'Mr. Raghavan', phone: '+919800100101', city: 'Chennai', title: 'Main kitchen, 180 covers', requirement: 'South & North Indian a la carte kitchen with tandoor section, bakery corner and cold room.', value: 2850000, priority: 'HIGH', stage: 'LEAD', daysInStage: 1 },
-  { customer: 'Green Leaf Veg Restaurant', contact: 'Ms. Lakshmi', phone: '+919800100102', city: 'Coimbatore', title: 'Kitchen renovation', requirement: 'Replace ranges and dosa plates, add exhaust hood with fresh-air unit.', value: 940000, priority: 'NORMAL', stage: 'SITE_SURVEY', daysInStage: 4 },
+  { customer: 'Green Leaf Veg Restaurant', contact: 'Ms. Lakshmi', phone: '+919800100102', city: 'Coimbatore', title: 'Kitchen renovation', requirement: 'Replace ranges and dosa plates, add exhaust hood with fresh-air unit.', value: 940000, priority: 'NORMAL', stage: 'LAYOUT_DRAWING', daysInStage: 4 },
   { customer: 'Marina Bay Seafood', contact: 'Mr. Joseph', phone: '+919800100103', city: 'Chennai', title: 'Seafood restaurant kitchen', requirement: 'Wet & dry prep areas, live tank wash zone, 2 x six-burner ranges.', value: 1650000, priority: 'NORMAL', stage: 'QUOTATION_PREP', daysInStage: 1 },
   { customer: 'Sunrise Hospital Canteen', contact: 'Dr. Meenakshi', phone: '+919800100104', city: 'Madurai', title: 'Hospital canteen, 600 meals/day', requirement: 'Bulk cooking kettles, steam cooking, tray line and dishwash area.', value: 3200000, priority: 'URGENT', stage: 'CUSTOMER_DECISION', daysInStage: 9 },
-  { customer: 'Royal Spice Biryani House', contact: 'Mr. Imran', phone: '+919800100105', city: 'Trichy', title: 'Central biryani kitchen', requirement: 'Dum biryani stations, 4 x large bulk burners, prep tables and storage racks.', value: 1280000, priority: 'HIGH', stage: 'BOQ_DRAWING', daysInStage: 2 },
+  { customer: 'Royal Spice Biryani House', contact: 'Mr. Imran', phone: '+919800100105', city: 'Trichy', title: 'Central biryani kitchen', requirement: 'Dum biryani stations, 4 x large bulk burners, prep tables and storage racks.', value: 1280000, priority: 'HIGH', stage: 'SITE_SURVEY', daysInStage: 2 },
   { customer: "St. Mary's College Hostel", contact: 'Fr. Thomas', phone: '+919800100106', city: 'Salem', title: 'Hostel mess kitchen', requirement: 'Mess for 900 students: bulk cookers, chapati line, rice boilers, washing area.', value: 2400000, priority: 'NORMAL', stage: 'CAD_DRAWING', daysInStage: 6 },
   { customer: 'Coastal Kitchen Café', contact: 'Ms. Priya', phone: '+919800100107', city: 'Pondicherry', title: 'Café and bakery kitchen', requirement: 'Deck oven, planetary mixer, under-counter refrigeration, display counters.', value: 760000, priority: 'NORMAL', stage: 'HEAD_APPROVAL', daysInStage: 1 },
   { customer: 'Kovai Grand Banquets', contact: 'Mr. Senthil', phone: '+919800100108', city: 'Coimbatore', title: 'Banquet kitchen, 1500 guests', requirement: 'Banquet production kitchen with live counters and holding cabinets.', value: 4100000, priority: 'HIGH', stage: 'PRODUCTION', daysInStage: 12 },
   { customer: 'Hill View Resort', contact: 'Mr. Arun', phone: '+919800100109', city: 'Ooty', title: 'Resort kitchen and coffee shop', requirement: 'Main kitchen, room-service pantry and coffee shop back counter.', value: 2250000, priority: 'NORMAL', stage: 'DISPATCH', daysInStage: 2 },
   { customer: 'Temple Annadhanam Hall', contact: 'Mr. Subramani', phone: '+919800100110', city: 'Kumbakonam', title: 'Annadhanam kitchen', requirement: 'Large steam cooking system for 2000 meals, vegetable prep and serving line.', value: 1850000, priority: 'URGENT', stage: 'INSTALLATION', daysInStage: 3 },
-  { customer: 'Urban Tiffin Co.', contact: 'Ms. Divya', phone: '+919800100111', city: 'Chennai', title: 'Cloud kitchen', requirement: 'Compact cloud kitchen for three brands with shared prep.', value: 690000, priority: 'NORMAL', stage: 'HANDOVER', daysInStage: 1 },
+  { customer: 'Urban Tiffin Co.', contact: 'Ms. Divya', phone: '+919800100111', city: 'Chennai', title: 'Cloud kitchen', requirement: 'Compact cloud kitchen for three brands with shared prep.', value: 690000, priority: 'NORMAL', stage: 'QC', daysInStage: 1 },
   { customer: 'Lakeside Fine Dine', contact: 'Mr. Karthik', phone: '+919800100112', city: 'Chennai', title: 'Fine-dining kitchen', requirement: 'Induction line, sous-vide station, pastry section.', value: 1980000, priority: 'NORMAL', stage: 'SERVICE', daysInStage: 40 },
   { customer: 'Metro Food Court', contact: 'Mr. Ramesh', phone: '+919800100113', city: 'Bengaluru', title: 'Food court counters', requirement: 'Six counters with shared dishwash.', value: 1450000, priority: 'LOW', stage: 'CUSTOMER_DECISION', daysInStage: 5, status: 'LOST' },
   { customer: 'Palm Grove Inn', contact: 'Mr. Vinod', phone: '+919800100114', city: 'Kochi', title: 'Hotel kitchen upgrade', requirement: 'Phase 2 upgrade, waiting for civil work at site.', value: 1100000, priority: 'NORMAL', stage: 'LAYOUT_APPROVAL', daysInStage: 7, status: 'ON_HOLD', holdReason: 'Site civil work delayed by the customer' },
@@ -45,18 +45,19 @@ const PROJECTS: DemoProject[] = [
 
 const ACTIONS: Partial<Record<StageCode, string>> = {
   LEAD: 'SUBMIT',
-  SITE_SURVEY: 'SUBMIT',
+  LAYOUT_DRAWING: 'SUBMIT',
+  LAYOUT_APPROVAL: 'APPROVE',
   QUOTATION_PREP: 'SUBMIT',
-  QUOTATION_SHARED: 'MARK_SENT',
   CUSTOMER_DECISION: 'ACCEPT',
   BOQ_DRAWING: 'SUBMIT',
-  LAYOUT_APPROVAL: 'APPROVE',
+  SITE_SURVEY: 'SUBMIT',
   CAD_DRAWING: 'SUBMIT',
   HEAD_APPROVAL: 'APPROVE',
+  CAD_RELEASE: 'SUBMIT',
   PRODUCTION: 'COMPLETE',
+  QC: 'APPROVE',
   DISPATCH: 'DELIVER',
-  INSTALLATION: 'COMPLETE',
-  HANDOVER: 'HANDOVER',
+  INSTALLATION: 'HANDOVER',
 };
 
 /** Sample projects for training and showing the app; flagged isDemo and removable together. */
@@ -243,17 +244,22 @@ export class DemoDataService {
 
     if (target >= stageIndex('PRODUCTION')) {
       const items = ['Three-burner range', 'Exhaust hood with fresh air', 'Work table with undershelf', 'Double-bowl sink unit', 'Four-door refrigerator', 'Dishwash table'];
-      const production = person('PRODUCTION');
+      const checker = person('QC');
       const finished = target > stageIndex('PRODUCTION');
+      // At Production: items spread over the four levels. At QC: all made, two already checked.
+      const levels: (ProductionLevel | 'DONE' | null)[] = ['DONE', 'POLISH', 'WELDING', 'FABRICATION', 'LASER_BENDING', null];
       for (let i = 0; i < items.length; i++) {
-        const progress = finished ? 100 : [100, 100, 80, 60, 30, 0][i];
+        const at = finished ? 'DONE' : levels[i];
+        const status = at === 'DONE' ? 'DONE' : at ? 'IN_PROGRESS' : 'NOT_STARTED';
+        const level = at === 'DONE' ? 'POLISH' : at;
+        const passed = target > stageIndex('QC') || (target === stageIndex('QC') && i < 2);
         await tx.productionItem.create({
           data: {
-            projectId, name: items[i], quantity: i === 2 ? 3 : 1, sortOrder: i, progress,
-            status: progress >= 100 ? 'DONE' : progress > 0 ? 'IN_PROGRESS' : 'NOT_STARTED',
-            qcStatus: finished || (progress >= 100 && i === 0) ? 'PASSED' : 'PENDING',
-            qcById: finished || (progress >= 100 && i === 0) ? production : null,
-            qcAt: finished || (progress >= 100 && i === 0) ? new Date(now - 3 * DAY) : null,
+            projectId, name: items[i], quantity: i === 2 ? 3 : 1, sortOrder: i,
+            status, level, progress: itemProgress(status, level),
+            qcStatus: passed ? 'PASSED' : 'PENDING',
+            qcById: passed ? checker : null,
+            qcAt: passed ? new Date(now - 3 * DAY) : null,
           },
         });
       }
@@ -293,7 +299,7 @@ export class DemoDataService {
       });
     }
 
-    if (target >= stageIndex('QUOTATION_SHARED')) {
+    if (target >= stageIndex('CUSTOMER_DECISION')) {
       await tx.comment.create({
         data: { projectId, stage: d.stage, body: 'Customer asked to keep the dishwash area near the back door.', authorId: sales, createdAt: new Date(now - 2 * DAY) },
       });
