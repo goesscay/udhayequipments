@@ -4,11 +4,12 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { PRIORITIES, createProjectSchema, type CreateProjectInput, type ProjectDetail } from '@udhay/shared';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Suspense } from 'react';
+import { Suspense, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import { PageHeader } from '@/components/app-shell';
 import type { Customer } from '@/components/customer-form';
+import { CustomerSuggest } from '@/components/customer-suggest';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Field, Input, Select, Textarea } from '@/components/ui/form';
@@ -38,6 +39,9 @@ function NewProjectForm() {
   const {
     register,
     handleSubmit,
+    setValue,
+    getValues,
+    watch,
     formState: { errors },
   } = useForm<CreateProjectInput>({
     resolver: zodResolver(createProjectSchema),
@@ -45,6 +49,26 @@ function NewProjectForm() {
     values: existing ? { priority: 'NORMAL', title: '', customerId, city: existing.city ?? '', siteAddress: existing.address ?? '' } : undefined,
     resetOptions: { keepDirtyValues: true },
   });
+
+  // An existing customer picked from the name suggestions; its saved details are used as-is.
+  const [picked, setPicked] = useState<Customer | null>(null);
+  const pickCustomer = (c: Customer) => {
+    setPicked(c);
+    const opts = { shouldValidate: true, shouldDirty: true };
+    setValue('customerId', c.id, opts);
+    setValue('customerName', c.name, opts);
+    setValue('contactPerson', c.contactPerson ?? '', opts);
+    setValue('customerPhone', c.phone ?? '', opts);
+    setValue('customerEmail', c.email ?? '', opts);
+    // Site details usually match the customer's; only fill what is still empty.
+    if (!getValues('city')) setValue('city', c.city ?? '', opts);
+    if (!getValues('siteAddress')) setValue('siteAddress', c.address ?? '', opts);
+  };
+  const unpick = () => {
+    setPicked(null);
+    setValue('customerId', undefined);
+  };
+  const nameField = register('customerName');
 
   const create = useMutation({
     mutationFn: (values: CreateProjectInput) =>
@@ -82,19 +106,42 @@ function NewProjectForm() {
         <Card className="space-y-4 p-4">
           <h2 className="text-sm font-semibold">Customer</h2>
           <div className="grid gap-4 md:grid-cols-2">
-            <Field label="Customer / business name" error={errors.customerName?.message}>
-              <Input placeholder="e.g. Hotel Saravana Bhavan" {...register('customerName')} />
+            <Field
+              label="Customer / business name"
+              hint={can('customer.view') ? 'Type to search existing customers' : undefined}
+              error={errors.customerName?.message}
+            >
+              <CustomerSuggest
+                placeholder="e.g. Hotel Saravana Bhavan"
+                enabled={can('customer.view') && !picked}
+                value={watch('customerName') ?? ''}
+                onPick={pickCustomer}
+                {...nameField}
+                onChange={(e) => {
+                  // Editing the name after picking means it's a different (new) customer.
+                  if (picked) unpick();
+                  nameField.onChange(e);
+                }}
+              />
             </Field>
             <Field label="Contact person" error={errors.contactPerson?.message}>
-              <Input {...register('contactPerson')} />
+              <Input readOnly={!!picked} {...register('contactPerson')} />
             </Field>
             <Field label="Phone" error={errors.customerPhone?.message}>
-              <Input type="tel" inputMode="tel" {...register('customerPhone')} />
+              <Input type="tel" inputMode="tel" readOnly={!!picked} {...register('customerPhone')} />
             </Field>
             <Field label="Email (optional)" error={errors.customerEmail?.message}>
-              <Input type="email" {...register('customerEmail')} />
+              <Input type="email" readOnly={!!picked} {...register('customerEmail')} />
             </Field>
           </div>
+          {picked && (
+            <p className="flex flex-wrap items-center gap-x-2 rounded-lg bg-surface px-3 py-2 text-[12px] text-muted">
+              <span>Existing customer — the project is added to {picked.name}. Edit their details from the customer page.</span>
+              <button type="button" className="font-medium text-brand underline" onClick={unpick}>
+                New customer instead
+              </button>
+            </p>
+          )}
         </Card>
         )}
 
