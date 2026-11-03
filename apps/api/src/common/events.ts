@@ -17,7 +17,8 @@ export const TicketEvents = {
 export interface ProjectTransitionedEvent {
   projectId: string;
   actorId: string;
-  action: WorkflowAction;
+  /** A workflow action, or a Super Admin override (MOVE: jumped to a stage; REASSIGN: handed to another team). */
+  action: WorkflowAction | 'MOVE' | 'REASSIGN';
   from: StageCode;
   to: StageCode | null;
   outcome: 'LOST' | 'COMPLETED' | null;

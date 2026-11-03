@@ -77,6 +77,22 @@ export class ReasonDto {
   @IsOptional() @IsString() @MaxLength(2000) reason?: string;
 }
 
+export class StatusDto {
+  @IsIn(PROJECT_STATUSES) status: ProjectStatus;
+  @IsString() @MinLength(1) @MaxLength(2000) reason: string;
+}
+
+export class MoveStageDto {
+  @IsString() @MaxLength(40) stage: StageCode;
+  @IsString() @MinLength(1) @MaxLength(2000) reason: string;
+}
+
+export class ReassignDto {
+  @IsIn(TEAMS) team: TeamCode;
+  @IsOptional() @IsString() userId?: string;
+  @IsOptional() @IsString() @MaxLength(2000) reason?: string;
+}
+
 export class AssignDto {
   @IsString() userId: string;
 }

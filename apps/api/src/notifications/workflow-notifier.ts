@@ -56,7 +56,7 @@ export class WorkflowNotifier {
 
       const open = project.stages[0];
       const toDef = this.workflow.stage(e.to);
-      const owners = await this.recipients.stageOwners(e.to, open?.assigneeId ?? null);
+      const owners = await this.recipients.stageOwners(e.to, open?.assigneeId ?? null, open?.team);
       await this.notifications.notify({
         userIds: owners,
         excludeUserId: e.actorId,
@@ -65,7 +65,9 @@ export class WorkflowNotifier {
           ? `Returned for revision: ${label} · ${toDef.label}`
           : `New handoff: ${label} · ${toDef.label}`,
         body: [
-          `${actor.name} sent this from ${this.workflow.stage(e.from).label} to ${TEAM_LABELS[toDef.team]}.`,
+          e.action === 'REASSIGN'
+            ? `${actor.name} handed ${toDef.label} to ${TEAM_LABELS[open?.team ?? toDef.team]}.`
+            : `${actor.name} sent this from ${this.workflow.stage(e.from).label} to ${TEAM_LABELS[open?.team ?? toDef.team]}.`,
           e.reason ? `Reason: ${e.reason}` : '',
           dueText(open?.dueAt ?? null),
         ]

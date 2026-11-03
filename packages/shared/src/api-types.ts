@@ -103,6 +103,8 @@ export interface ProjectDetail extends ProjectListItem {
   canAccept: boolean;
   canAssign: boolean;
   canManage: boolean;
+  /** Super Admin: may change status, jump stages and hand work to any team or person. */
+  canOverride: boolean;
 }
 
 export interface QueueItem {

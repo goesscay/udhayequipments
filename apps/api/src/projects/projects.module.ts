@@ -8,7 +8,10 @@ import {
   CommentDto,
   CreateProjectDto,
   ListProjectsQuery,
+  MoveStageDto,
   ReasonDto,
+  ReassignDto,
+  StatusDto,
   TransitionDto,
   UpdateProjectDto,
 } from './projects.dto';
@@ -93,6 +96,30 @@ class ProjectsController {
   @RequirePermissions('project.manage')
   cancel(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: ReasonDto) {
     return this.workflow.cancel(user, id, dto.reason ?? '');
+  }
+
+  /** Super Admin only (checked in the service): set any status, including reopening. */
+  @Post(':id/status')
+  @HttpCode(200)
+  @RequirePermissions('project.manage')
+  setStatus(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: StatusDto) {
+    return this.workflow.setStatus(user, id, dto.status, dto.reason);
+  }
+
+  /** Super Admin only: jump to any stage. */
+  @Post(':id/move')
+  @HttpCode(200)
+  @RequirePermissions('project.manage')
+  move(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: MoveStageDto) {
+    return this.workflow.moveToStage(user, id, dto.stage, dto.reason);
+  }
+
+  /** Super Admin only: hand the current stage to another team and/or person. */
+  @Post(':id/reassign')
+  @HttpCode(200)
+  @RequirePermissions('project.manage')
+  reassign(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: ReassignDto) {
+    return this.workflow.reassign(user, id, dto.team, dto.userId, dto.reason);
   }
 
   @Post(':id/comments')

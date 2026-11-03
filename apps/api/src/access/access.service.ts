@@ -15,7 +15,8 @@ import type { AuthUser } from '../common/types';
 interface StageContext {
   currentStage: StageCode;
   salesOwnerId: string;
-  openStage: { assigneeId: string | null } | null;
+  /** The open stage row; its team can differ from the workflow's when a Super Admin handed it over. */
+  openStage: { assigneeId: string | null; team?: TeamCode } | null;
 }
 
 /** Central place for "who can see / do what". Services call this; controllers stay thin. */
@@ -107,7 +108,7 @@ export class AccessService {
     if (!scope) return false;
     if (!t.teamBound || scope === 'ALL') return true;
 
-    const stageTeam = this.workflow.stage(ctx.currentStage).team;
+    const stageTeam = ctx.openStage?.team ?? this.workflow.stage(ctx.currentStage).team;
     if (user.team !== stageTeam) return false;
     if (scope === 'TEAM') return true;
 
@@ -119,11 +120,12 @@ export class AccessService {
   /** Can this user pick up (accept) the open stage? */
   canAccept(user: AuthUser, ctx: StageContext): boolean {
     const def = this.workflow.stage(ctx.currentStage);
-    if (def.code === 'HEAD_APPROVAL') return !!this.scopeOf(user, 'cad.approve');
+    const team = ctx.openStage?.team ?? def.team;
+    if (def.code === 'HEAD_APPROVAL' && team === def.team) return !!this.scopeOf(user, 'cad.approve');
     const scope = this.scopeOf(user, 'stage.act');
     if (!scope) return false;
     if (scope === 'ALL') return true;
-    if (user.team !== def.team) return false;
+    if (user.team !== team) return false;
     return scope === 'TEAM' || !ctx.openStage?.assigneeId || ctx.openStage.assigneeId === user.id;
   }
 

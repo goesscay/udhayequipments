@@ -12,9 +12,9 @@ export class RecipientsService {
   ) {}
 
   /** The assignee if there is one; otherwise everyone who can act on the stage. */
-  async stageOwners(stage: StageCode, assigneeId: string | null): Promise<string[]> {
+  async stageOwners(stage: StageCode, assigneeId: string | null, holdingTeam?: TeamCode): Promise<string[]> {
     if (assigneeId) return [assigneeId];
-    const team = this.workflow.stage(stage).team;
+    const team = holdingTeam ?? this.workflow.stage(stage).team;
     if (team === 'MANAGEMENT') return this.withPermission('cad.approve');
     return this.withPermission('stage.act', { team });
   }

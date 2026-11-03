@@ -174,6 +174,7 @@ export class ProjectsService {
       canAccept: p.status === 'ACTIVE' && !!openRow && !openRow.acceptedAt && this.access.canAccept(user, ctx),
       canAssign: p.status === 'ACTIVE' && !!this.access.scopeOf(user, 'stage.assign'),
       canManage: !!this.access.scopeOf(user, 'project.manage'),
+      canOverride: user.roleCode === 'SUPER_ADMIN',
     };
   }
 

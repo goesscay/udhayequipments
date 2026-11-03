@@ -10,12 +10,13 @@ import {
   type ProjectDetail,
   type ResolvedWorkflow,
 } from '@udhay/shared';
-import { AlertCircle, ArrowLeft, Download, FileText, MapPin, Pencil, Phone, Upload } from 'lucide-react';
+import { AlertCircle, ArrowLeft, Download, FileText, MapPin, Pencil, Phone, ShieldCheck, Upload } from 'lucide-react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { MentionText, MentionTextarea, toStored } from '@/components/mentions';
+import { AdminControls, useAllUsers } from '@/components/project/admin-controls';
 import { DispatchTab } from '@/components/project/dispatch-tab';
 import { PaymentsTab } from '@/components/project/payments-tab';
 import { ProductionTab } from '@/components/project/production-tab';
@@ -87,6 +88,7 @@ export default function ProjectPage() {
   const [tabChoice, setTab] = useState<Tab | null>(null);
   const [pending, setPending] = useState<AvailableAction | null>(null);
   const [manage, setManage] = useState<'hold' | 'cancel' | null>(null);
+  const [override, setOverride] = useState(false);
 
   const { data: p, isLoading, error } = useQuery({
     queryKey: ['project', id],
@@ -145,11 +147,18 @@ export default function ProjectPage() {
           <DemoBadge isDemo={p.isDemo} />
           <StatusBadge status={p.status} />
           <PriorityBadge priority={p.priority} />
-          {can('project.update') && (
-            <Button variant="ghost" size="sm" className="ml-auto -mr-2 text-muted" onClick={() => setEditing(true)}>
-              <Pencil /> Edit
-            </Button>
-          )}
+          <div className="ml-auto -mr-2 flex">
+            {p.canOverride && (
+              <Button variant="ghost" size="sm" className="text-muted" onClick={() => setOverride(true)}>
+                <ShieldCheck /> Admin controls
+              </Button>
+            )}
+            {can('project.update') && (
+              <Button variant="ghost" size="sm" className="text-muted" onClick={() => setEditing(true)}>
+                <Pencil /> Edit
+              </Button>
+            )}
+          </div>
         </div>
         <h1 className="mt-1 text-xl font-semibold tracking-tight md:text-2xl">
           {can('customer.view') ? (
@@ -277,6 +286,16 @@ export default function ProjectPage() {
           project={p}
           onSaved={() => {
             setEditing(false);
+            refresh();
+          }}
+        />
+      </Sheet>
+      <Sheet open={override} onClose={() => setOverride(false)} title="Admin controls">
+        <AdminControls
+          key={`${p.status}-${p.currentStage}-${p.currentTeam}-${p.assignee?.id ?? ''}`}
+          project={p}
+          onDone={() => {
+            setOverride(false);
             refresh();
           }}
         />
@@ -424,13 +443,17 @@ function ReasonForm({
 
 function AssignControl({ project, onDone }: { project: ProjectDetail; onDone: () => void }) {
   const { can } = useAuth();
-  const { data: users } = useQuery({
-    queryKey: ['users'],
-    queryFn: () => api<{ id: string; name: string; isActive: boolean; team: { code: string } | null }[]>('/users'),
-    enabled: can('user.view'),
-  });
+  const { data: users } = useAllUsers(can('user.view'));
+  const anyone = project.canOverride;
   const assign = useMutation({
-    mutationFn: (userId: string) => api(`/projects/${project.id}/assign`, { method: 'POST', json: { userId } }),
+    mutationFn: (userId: string) => {
+      // Super Admins can pick anyone; choosing someone in another team hands the stage to that team.
+      if (anyone) {
+        const team = users?.find((u) => u.id === userId)?.team?.code ?? project.currentTeam;
+        return api(`/projects/${project.id}/reassign`, { method: 'POST', json: { team, userId } });
+      }
+      return api(`/projects/${project.id}/assign`, { method: 'POST', json: { userId } });
+    },
     onSuccess: () => {
       toast.success('Assigned');
       onDone();
@@ -438,9 +461,15 @@ function AssignControl({ project, onDone }: { project: ProjectDetail; onDone: ()
     onError: (e: Error) => toast.error(e.message),
   });
   const options = users?.filter(
-    (u) => u.isActive && (project.currentTeam === 'MANAGEMENT' || u.team?.code === project.currentTeam),
+    (u) => u.isActive && (anyone || project.currentTeam === 'MANAGEMENT' || u.team?.code === project.currentTeam),
   );
   if (!options?.length) return null;
+  const groups = anyone
+    ? [...new Set(options.map((u) => u.team?.name ?? 'No team'))].map((name) => ({
+        name,
+        users: options.filter((u) => (u.team?.name ?? 'No team') === name),
+      }))
+    : null;
   return (
     <div className="mt-3 flex items-center gap-2">
       <span className="text-[12px] text-muted">Assign to</span>
@@ -451,9 +480,17 @@ function AssignControl({ project, onDone }: { project: ProjectDetail; onDone: ()
         onChange={(e) => e.target.value && assign.mutate(e.target.value)}
       >
         <option value="">Choose…</option>
-        {options.map((u) => (
-          <option key={u.id} value={u.id}>{u.name}</option>
-        ))}
+        {groups
+          ? groups.map((g) => (
+              <optgroup key={g.name} label={g.name}>
+                {g.users.map((u) => (
+                  <option key={u.id} value={u.id}>{u.name}</option>
+                ))}
+              </optgroup>
+            ))
+          : options.map((u) => (
+              <option key={u.id} value={u.id}>{u.name}</option>
+            ))}
       </Select>
     </div>
   );
