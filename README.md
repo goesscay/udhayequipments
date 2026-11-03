@@ -99,6 +99,7 @@ Each project gets tabs that appear as it reaches the relevant stage.
   - Importing then creates everyone with a random temporary password, shown once with a CSV download.
   - Department → team/role: Operations → Operations; Design Engineer → CAD; Project Co-ordinator → Project; Sales Co-ordinator → Sales; Service → Support & Service; Accounts → Accounts role (no team); Purchase → Purchase role (no team).
   - Everyone starts as a Team Member in their team; promote team heads in Users → Edit.
+- **Deleting a user (Super Admin only):** Users → trash icon, or Edit → Delete user. It is a soft delete: the person can't sign in and leaves the list, while past projects, comments and the audit log keep their name. Their employee code, mobile and email are freed for reuse (the old values are kept in the audit log). Their open stages and service tickets go back to the team. You can't delete yourself or the last active Super Admin.
 - **Temporary passwords:** passwords set by an admin (new user, import or reset) are temporary. The API refuses everything except signing out and changing the password until the person chooses their own.
 
 ### Demo data

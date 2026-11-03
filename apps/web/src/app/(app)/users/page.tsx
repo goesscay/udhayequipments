@@ -1,7 +1,7 @@
 'use client';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { FileSpreadsheet, Phone, Plus, Search } from 'lucide-react';
+import { FileSpreadsheet, Phone, Plus, Search, Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { PageHeader } from '@/components/app-shell';
@@ -36,6 +36,43 @@ export default function UsersPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const remove = useMutation({
+    mutationFn: (u: UserRow) =>
+      api<{ unassignedStages: number; unassignedTickets: number; salesOwnedProjects: number }>(`/users/${u.id}`, {
+        method: 'DELETE',
+      }),
+    onSuccess: (r, u) => {
+      refresh();
+      setEditing(null);
+      const back = r.unassignedStages + r.unassignedTickets;
+      toast.success(`${u.displayName || u.name} deleted`, {
+        description: [
+          back ? `${back} open item${back === 1 ? '' : 's'} went back to the team to pick up.` : '',
+          r.salesOwnedProjects
+            ? `${r.salesOwnedProjects} active project${r.salesOwnedProjects === 1 ? '' : 's'} still list them as sales owner.`
+            : '',
+        ]
+          .filter(Boolean)
+          .join(' ') || undefined,
+      });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+  const confirmRemove = (u: UserRow) => {
+    const name = u.displayName || u.name;
+    if (
+      confirm(
+        `Delete ${name}${u.employeeCode ? ` (${u.employeeCode})` : ''}?
+
+` +
+          'They will no longer be able to sign in and will disappear from the users list. Past projects and history keep their name. ' +
+          'Their employee code, mobile and email become free to use again. This cannot be undone here.',
+      )
+    ) {
+      remove.mutate(u);
+    }
+  };
+
   const teams = useMemo(() => [...new Set((users ?? []).map((u) => u.team?.name).filter(Boolean))].sort() as string[], [users]);
   const shown = useMemo(() => {
     const term = q.trim().toLowerCase();
@@ -52,6 +89,8 @@ export default function UsersPage() {
 
   const canManage = can('user.manage');
   const editable = (u: UserRow) => canManage && (u.role.code !== 'SUPER_ADMIN' || me?.role.code === 'SUPER_ADMIN');
+  // Deleting is for Super Admins only (the API checks this too).
+  const deletable = (u: UserRow) => canManage && me?.role.code === 'SUPER_ADMIN' && u.id !== me.id;
 
   return (
     <>
@@ -191,6 +230,19 @@ export default function UsersPage() {
                               {u.isActive ? 'Deactivate' : 'Activate'}
                             </Button>
                           )}
+                          {deletable(u) && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="text-bad hover:bg-bad/5"
+                              onClick={() => confirmRemove(u)}
+                              disabled={remove.isPending}
+                              aria-label={`Delete ${u.displayName || u.name}`}
+                              title="Delete user"
+                            >
+                              <Trash2 />
+                            </Button>
+                          )}
                         </div>
                       )}
                     </td>
@@ -234,6 +286,16 @@ export default function UsersPage() {
                 }}
               >
                 {editing.isActive ? 'Deactivate user' : 'Activate user'}
+              </Button>
+            )}
+            {deletable(editing) && (
+              <Button
+                variant="danger"
+                className="mt-2 w-full"
+                loading={remove.isPending}
+                onClick={() => confirmRemove(editing)}
+              >
+                <Trash2 /> Delete user
               </Button>
             )}
           </>

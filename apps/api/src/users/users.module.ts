@@ -3,6 +3,7 @@ import {
   Body,
   ConflictException,
   Controller,
+  Delete,
   ForbiddenException,
   Get,
   Injectable,
@@ -18,6 +19,7 @@ import { hash } from '@node-rs/argon2';
 import { Prisma } from '@prisma/client';
 import {
   EMPLOYMENT_TYPES,
+  OPEN_TICKET_STATUSES,
   GENDERS,
   mapDepartment,
   normalizePhone,
@@ -212,6 +214,64 @@ class UsersService {
   }
 
   /**
+   * Super Admin only. A soft delete: past projects, comments and the audit log keep pointing at the
+   * person, but they disappear from the app, can't sign in, and their employee code, mobile and email
+   * are freed so they can be used again. Their open stages and service tickets go back to the team.
+   */
+  async remove(actor: AuthUser, id: string) {
+    if (actor.roleCode !== 'SUPER_ADMIN') throw new ForbiddenException('Only a Super Admin can delete users');
+    if (id === actor.id) throw new BadRequestException('You cannot delete yourself');
+    const target = await this.prisma.user.findFirst({ where: { id, deletedAt: null }, include: { role: true } });
+    if (!target) throw new NotFoundException('User not found');
+    if (target.role.code === 'SUPER_ADMIN') {
+      const others = await this.prisma.user.count({
+        where: { id: { not: id }, deletedAt: null, isActive: true, role: { code: 'SUPER_ADMIN' } },
+      });
+      if (!others) throw new BadRequestException('Keep at least one active Super Admin');
+    }
+
+    const result = await this.prisma.$transaction(async (tx) => {
+      const stages = await tx.projectStage.updateMany({
+        where: { assigneeId: id, status: 'OPEN' },
+        data: { assigneeId: null, acceptedAt: null, acceptedById: null },
+      });
+      const tickets = await tx.serviceTicket.updateMany({
+        where: { assigneeId: id, status: { in: [...OPEN_TICKET_STATUSES] } },
+        data: { assigneeId: null },
+      });
+      const salesOwned = await tx.project.count({
+        where: { salesOwnerId: id, deletedAt: null, status: { in: ['ACTIVE', 'ON_HOLD'] } },
+      });
+      await tx.user.update({
+        where: { id },
+        data: { deletedAt: new Date(), isActive: false, email: null, phone: null, employeeCode: null },
+      });
+      await this.audit.log(
+        {
+          actorId: actor.id,
+          entity: 'user',
+          entityId: id,
+          action: 'delete',
+          // The freed identifiers are kept here so the record can still be traced.
+          data: {
+            name: target.name,
+            employeeCode: target.employeeCode,
+            phone: target.phone,
+            email: target.email,
+            role: target.role.code,
+            unassignedStages: stages.count,
+            unassignedTickets: tickets.count,
+          },
+        },
+        tx,
+      );
+      return { unassignedStages: stages.count, unassignedTickets: tickets.count, salesOwnedProjects: salesOwned };
+    });
+    await this.auth.revokeAll(id);
+    return { ok: true, ...result };
+  }
+
+  /**
    * Creates staff from an HR sheet. Department decides team and starting role; each person gets
    * a temporary password that is returned once and must be changed at first sign-in.
    */
@@ -375,6 +435,12 @@ class UsersController {
   @RequirePermissions('user.manage')
   update(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: UpdateUserDto) {
     return this.users.update(user, id, dto);
+  }
+
+  @Delete('users/:id')
+  @RequirePermissions('user.manage')
+  remove(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.users.remove(user, id);
   }
 
   /** Active colleagues for @mentions and pickers; available to every signed-in user. */
