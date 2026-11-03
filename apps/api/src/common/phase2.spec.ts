@@ -106,6 +106,7 @@ describe('people helpers', () => {
     assert.deepEqual(mapDepartment('Sales Co-ordinator'), { team: 'SALES', role: 'TEAM_MEMBER' });
     assert.deepEqual(mapDepartment('Service'), { team: 'SERVICE', role: 'TEAM_MEMBER' });
     assert.deepEqual(mapDepartment('QC'), { team: 'QC', role: 'TEAM_MEMBER' });
+    assert.deepEqual(mapDepartment('SERVICE & SUPPORT'), { team: 'SERVICE', role: 'TEAM_MEMBER' });
     assert.equal(mapDepartment('Canteen'), null);
   });
 

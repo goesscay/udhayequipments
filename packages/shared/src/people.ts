@@ -26,6 +26,9 @@ export const DEPARTMENT_MAP: Record<string, { team: TeamCode | null; role: RoleC
   'sales coordinator': { team: 'SALES', role: 'TEAM_MEMBER' },
   sales: { team: 'SALES', role: 'TEAM_MEMBER' },
   service: { team: 'SERVICE', role: 'TEAM_MEMBER' },
+  'service & support': { team: 'SERVICE', role: 'TEAM_MEMBER' },
+  'support & service': { team: 'SERVICE', role: 'TEAM_MEMBER' },
+  support: { team: 'SERVICE', role: 'TEAM_MEMBER' },
   production: { team: 'PRODUCTION', role: 'TEAM_MEMBER' },
   qc: { team: 'QC', role: 'TEAM_MEMBER' },
   'quality check': { team: 'QC', role: 'TEAM_MEMBER' },
@@ -49,7 +52,8 @@ export const DEPARTMENTS = [
 ] as const;
 
 export function mapDepartment(department: string | null | undefined) {
-  return DEPARTMENT_MAP[(department ?? '').trim().toLowerCase()] ?? null;
+  // Case and spacing don't matter: "SERVICE &  SUPPORT" matches "service & support".
+  return DEPARTMENT_MAP[(department ?? '').trim().toLowerCase().replace(/\s+/g, ' ')] ?? null;
 }
 
 /**
