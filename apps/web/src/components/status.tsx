@@ -1,11 +1,12 @@
 import {
-  STAGE_BY_CODE,
+  TEAM_LABELS,
   type Priority,
   type ProjectStatus,
   type StageCode,
 } from '@udhay/shared';
 import { Badge, type BadgeTone } from '@/components/ui/card';
 import { cn, dueLabel, ragStatus, type Rag } from '@/lib/utils';
+import { useWorkflow } from '@/lib/workflow';
 
 const ragDot: Record<Rag, string> = {
   green: 'bg-ok',
@@ -31,7 +32,13 @@ export function DueBadge({ startedAt, dueAt }: { startedAt: string | null; dueAt
 }
 
 export function StageBadge({ stage }: { stage: StageCode }) {
-  return <Badge tone="brand">{STAGE_BY_CODE[stage].short}</Badge>;
+  return <Badge tone="brand">{useWorkflow().stage(stage).short}</Badge>;
+}
+
+/** A stage's name (or short name, or owning team) as set in Settings → Workflow. */
+export function StageName({ stage, show = 'label' }: { stage: StageCode; show?: 'label' | 'short' | 'team' }) {
+  const def = useWorkflow().stage(stage);
+  return <>{show === 'team' ? TEAM_LABELS[def.team] : def[show]}</>;
 }
 
 const statusTone: Record<ProjectStatus, BadgeTone> = {

@@ -1,7 +1,7 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
-import { STAGE_BY_CODE, TEAM_LABELS, type ReportSummary } from '@udhay/shared';
+import { type ReportSummary } from '@udhay/shared';
 import { Download } from 'lucide-react';
 import Link from 'next/link';
 import { useState } from 'react';
@@ -9,6 +9,7 @@ import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAx
 import { toast } from 'sonner';
 import { PageHeader } from '@/components/app-shell';
 import { Button } from '@/components/ui/button';
+import { StageName } from '@/components/status';
 import { Card, CardHeader, EmptyState, Skeleton } from '@/components/ui/card';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
@@ -172,8 +173,8 @@ export default function ReportsPage() {
                   {data.stageDurations.map((s) => (
                     <tr key={s.stage}>
                       <td className="px-4 py-2">
-                        {STAGE_BY_CODE[s.stage].label}
-                        <span className="ml-1.5 text-[11px] text-muted">{TEAM_LABELS[STAGE_BY_CODE[s.stage].team]}</span>
+                        <StageName stage={s.stage} />
+                        <span className="ml-1.5 text-[11px] text-muted"><StageName stage={s.stage} show="team" /></span>
                       </td>
                       <td className="tabular px-4 py-2 text-right">{s.completed || '—'}</td>
                       <td className="tabular px-4 py-2 text-right">{hours(s.avgHours)}</td>

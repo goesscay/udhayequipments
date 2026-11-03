@@ -39,6 +39,10 @@ Sign in with the seed credentials from `apps/api/.env` (`SEED_SUPERADMIN_EMAIL` 
 - Revision loops (quotation, layout, CAD rejection) reopen an earlier stage as a new cycle. The stage goes back to whoever handled it last, and a new document version is required.
 - **Handoffs:** the receiving team must *Accept* the handoff, and acceptance time is recorded.
 - SLA hours per stage are seeded into `StageSetting` and can be changed per stage.
+- **Settings → Workflow** (`settings.manage`): rename stages and action buttons, move a stage to another team, switch off optional stages (Site Survey, Quotation Shared, Layout Approval, CAD, Head Approval, Dispatch, Installation) and side paths (revisions, rejections, mark lost), and change which documents and reasons each step needs.
+  - Only the differences from the built-in workflow are stored, as JSON in `AppSetting` (key `workflow`), and resolved by `resolveWorkflow()` in `packages/shared/src/workflow-config.ts`. The API holds the resolved workflow in memory (`WorkflowConfigService`) and every page reads it from `GET /api/workflow`.
+  - A switched-off stage is skipped going forward; return paths into it are hidden. Projects already in it can still finish it.
+  - Moving a stage to another team also moves its open work. The advance-payment check runs on any step into Production, so it still applies when Head Approval is off.
 
 ### Auth
 - Implemented natively in NestJS: argon2 password hashes, a 15-minute JWT access token held in memory, and a 30-day rotating refresh token in an httpOnly `SameSite=Strict` cookie. Reuse of a rotated token revokes every session of that user.

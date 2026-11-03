@@ -4,7 +4,6 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   DOCUMENT_LABELS,
   DOCUMENT_TYPES,
-  STAGE_BY_CODE,
   TEAM_LABELS,
   stageIndex,
   type AvailableAction,
@@ -23,7 +22,7 @@ import { ProductionTab } from '@/components/project/production-tab';
 import { ServiceTab } from '@/components/project/service-tab';
 import { SiteTab } from '@/components/project/site-tab';
 import { ProjectEditForm } from '@/components/project-edit-form';
-import { DemoBadge, DueBadge, PriorityBadge, StageBadge, StatusBadge } from '@/components/status';
+import { DemoBadge, DueBadge, PriorityBadge, StageBadge, StageName, StatusBadge } from '@/components/status';
 import { StageStepper } from '@/components/stage-stepper';
 import { Button } from '@/components/ui/button';
 import { Badge, Card, CardHeader, EmptyState, Skeleton } from '@/components/ui/card';
@@ -186,7 +185,7 @@ export default function ProjectPage() {
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
                 <p className="text-[11px] font-medium uppercase tracking-wide text-brand-600">Current stage</p>
-                <p className="font-semibold">{STAGE_BY_CODE[p.currentStage].label}</p>
+                <p className="font-semibold"><StageName stage={p.currentStage} /></p>
                 <p className="text-[12px] text-muted">
                   {TEAM_LABELS[p.currentTeam]} · {p.assignee?.name ?? 'Unassigned'}
                   {!p.accepted && ' · waiting for acceptance'}

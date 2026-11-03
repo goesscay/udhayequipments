@@ -1,24 +1,26 @@
-import { STAGES, TEAM_LABELS, type ProjectDetail } from '@udhay/shared';
+import { TEAM_LABELS, type ProjectDetail } from '@udhay/shared';
 import { Check } from 'lucide-react';
 import { cn, formatDate } from '@/lib/utils';
+import { useWorkflow } from '@/lib/workflow';
 
-/** Vertical stepper of all 14 stages with the latest visit to each. */
+/** Vertical stepper of the workflow's stages with the latest visit to each. Switched-off stages are left out unless this project went through them. */
 export function StageStepper({ project }: { project: ProjectDetail }) {
   const latest = new Map<string, ProjectDetail['stages'][number]>();
   for (const s of project.stages) latest.set(s.stage, s);
-  const currentIdx = STAGES.findIndex((s) => s.code === project.currentStage);
+  const stages = useWorkflow().stages.filter((s) => s.enabled || latest.has(s.code));
+  const currentIdx = stages.findIndex((s) => s.code === project.currentStage);
   const closed = project.status !== 'ACTIVE' && project.status !== 'ON_HOLD';
 
   return (
     <ol className="relative">
-      {STAGES.map((def, i) => {
+      {stages.map((def, i) => {
         const visit = latest.get(def.code);
         const isCurrent = i === currentIdx && !closed;
         const done = visit?.status === 'DONE' || (i < currentIdx && !!visit);
         const overdue = isCurrent && visit?.dueAt && new Date(visit.dueAt) < new Date();
         return (
           <li key={def.code} className="relative flex gap-3 pb-4 last:pb-0">
-            {i < STAGES.length - 1 && (
+            {i < stages.length - 1 && (
               <span className={cn('absolute left-[11px] top-6 h-[calc(100%-16px)] w-px', done ? 'bg-brand' : 'bg-line')} />
             )}
             <span

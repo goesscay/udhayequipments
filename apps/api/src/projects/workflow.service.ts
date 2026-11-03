@@ -8,10 +8,6 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import type { Prisma } from '@prisma/client';
 import {
   DOCUMENT_LABELS,
-  STAGE_BY_CODE,
-  findTransition,
-  stageIndex,
-  transitionsFrom,
   type AvailableAction,
   type DocumentType,
   type StageCode,
@@ -27,6 +23,7 @@ import {
 } from '../common/events';
 import type { AuthUser } from '../common/types';
 import { PrismaService } from '../prisma/prisma.module';
+import { WorkflowConfigService } from '../settings/workflow-config.service';
 import { GatesService } from './gates.service';
 
 type Tx = Prisma.TransactionClient;
@@ -45,6 +42,7 @@ export class WorkflowService {
     private readonly audit: AuditService,
     private readonly events: EventEmitter2,
     private readonly gates: GatesService,
+    private readonly workflow: WorkflowConfigService,
   ) {}
 
   async transition(user: AuthUser, projectId: string, action: WorkflowAction, reason?: string) {
@@ -52,10 +50,11 @@ export class WorkflowService {
       const project = await this.loadForUpdate(tx, user, projectId);
       if (project.status !== 'ACTIVE') throw new BadRequestException('Project is not active');
 
-      const def = findTransition(project.currentStage, action);
+      const wf = this.workflow.current;
+      const def = wf.find(project.currentStage, action);
       if (!def) {
         throw new BadRequestException(
-          `"${action}" is not allowed at stage ${STAGE_BY_CODE[project.currentStage].label}`,
+          `"${action}" is not allowed at stage ${wf.stage(project.currentStage).label}`,
         );
       }
       const open = project.stages[0] ?? null;
@@ -77,7 +76,7 @@ export class WorkflowService {
       }
 
       const now = new Date();
-      const backwards = def.to !== null && stageIndex(def.to) < stageIndex(project.currentStage);
+      const backwards = def.to !== null && wf.index(def.to) < wf.index(project.currentStage);
       if (open) {
         await tx.projectStage.update({
           where: { id: open.id },
@@ -165,7 +164,7 @@ export class WorkflowService {
       const open = project.stages[0];
       if (!open || project.status !== 'ACTIVE') throw new BadRequestException('No open stage to assign');
 
-      const stageTeam = STAGE_BY_CODE[project.currentStage].team;
+      const stageTeam = this.workflow.stage(project.currentStage).team;
       if (scope !== 'ALL' && user.team !== stageTeam) {
         throw new ForbiddenException('You can only assign work in your own team');
       }
@@ -241,7 +240,7 @@ export class WorkflowService {
   ): Promise<AvailableAction[]> {
     if (project.status !== 'ACTIVE') return [];
     const ctx = { currentStage: project.currentStage, salesOwnerId: project.salesOwnerId, openStage: open };
-    const allowed = transitionsFrom(project.currentStage).filter((t) => this.access.canPerformTransition(user, t, ctx));
+    const allowed = this.workflow.current.from(project.currentStage).filter((t) => this.access.canPerformTransition(user, t, ctx));
     return Promise.all(
       allowed.map(async (t) => ({
         action: t.action,
@@ -285,7 +284,7 @@ export class WorkflowService {
     now: Date,
     autoAccept = false,
   ) {
-    const def = STAGE_BY_CODE[stage];
+    const def = this.workflow.stage(stage);
     const previous = await tx.projectStage.findFirst({
       where: { projectId, stage },
       orderBy: { startedAt: 'desc' },
@@ -316,7 +315,7 @@ export class WorkflowService {
 
   private async slaHours(tx: Tx, stage: StageCode) {
     const setting = await tx.stageSetting.findUnique({ where: { stage } });
-    return setting?.slaHours ?? STAGE_BY_CODE[stage].slaHours;
+    return setting?.slaHours ?? this.workflow.stage(stage).slaHours;
   }
 
   private async missingDocuments(

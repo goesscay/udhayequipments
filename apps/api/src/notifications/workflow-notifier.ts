@@ -1,12 +1,13 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
-import { STAGE_BY_CODE, TEAM_LABELS } from '@udhay/shared';
+import { TEAM_LABELS } from '@udhay/shared';
 import {
   ProjectEvents,
   type ProjectAssignedEvent,
   type ProjectTransitionedEvent,
 } from '../common/events';
 import { PrismaService } from '../prisma/prisma.module';
+import { WorkflowConfigService } from '../settings/workflow-config.service';
 import { NotificationsService } from './notifications.service';
 import { RecipientsService } from './recipients.service';
 
@@ -20,6 +21,7 @@ export class WorkflowNotifier {
 
   constructor(
     private readonly prisma: PrismaService,
+    private readonly workflow: WorkflowConfigService,
     private readonly recipients: RecipientsService,
     private readonly notifications: NotificationsService,
   ) {}
@@ -53,7 +55,7 @@ export class WorkflowNotifier {
       }
 
       const open = project.stages[0];
-      const toDef = STAGE_BY_CODE[e.to];
+      const toDef = this.workflow.stage(e.to);
       const owners = await this.recipients.stageOwners(e.to, open?.assigneeId ?? null);
       await this.notifications.notify({
         userIds: owners,
@@ -63,7 +65,7 @@ export class WorkflowNotifier {
           ? `Returned for revision: ${label} · ${toDef.label}`
           : `New handoff: ${label} · ${toDef.label}`,
         body: [
-          `${actor.name} sent this from ${STAGE_BY_CODE[e.from].label} to ${TEAM_LABELS[toDef.team]}.`,
+          `${actor.name} sent this from ${this.workflow.stage(e.from).label} to ${TEAM_LABELS[toDef.team]}.`,
           e.reason ? `Reason: ${e.reason}` : '',
           dueText(open?.dueAt ?? null),
         ]
@@ -89,7 +91,7 @@ export class WorkflowNotifier {
         userIds: [e.assigneeId],
         excludeUserId: e.actorId,
         type: 'ASSIGNED',
-        title: `Assigned to you: ${project.customer.name} (${project.code}) · ${STAGE_BY_CODE[e.stage].label}`,
+        title: `Assigned to you: ${project.customer.name} (${project.code}) · ${this.workflow.stage(e.stage).label}`,
         body: `${actor.name} assigned this to you. ${dueText(project.stageDueAt)}`.trim(),
         projectId: project.id,
       });

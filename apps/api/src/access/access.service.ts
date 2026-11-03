@@ -1,7 +1,6 @@
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
 import {
-  STAGE_BY_CODE,
   type PermissionKey,
   type Scope,
   type SessionUser,
@@ -10,6 +9,7 @@ import {
   type TransitionDef,
 } from '@udhay/shared';
 import { PrismaService } from '../prisma/prisma.module';
+import { WorkflowConfigService } from '../settings/workflow-config.service';
 import type { AuthUser } from '../common/types';
 
 interface StageContext {
@@ -21,7 +21,10 @@ interface StageContext {
 /** Central place for "who can see / do what". Services call this; controllers stay thin. */
 @Injectable()
 export class AccessService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly workflow: WorkflowConfigService,
+  ) {}
 
   async loadAuthUser(id: string): Promise<AuthUser | null> {
     const u = await this.prisma.user.findFirst({
@@ -104,7 +107,7 @@ export class AccessService {
     if (!scope) return false;
     if (!t.teamBound || scope === 'ALL') return true;
 
-    const stageTeam = STAGE_BY_CODE[ctx.currentStage].team;
+    const stageTeam = this.workflow.stage(ctx.currentStage).team;
     if (user.team !== stageTeam) return false;
     if (scope === 'TEAM') return true;
 
@@ -115,7 +118,7 @@ export class AccessService {
 
   /** Can this user pick up (accept) the open stage? */
   canAccept(user: AuthUser, ctx: StageContext): boolean {
-    const def = STAGE_BY_CODE[ctx.currentStage];
+    const def = this.workflow.stage(ctx.currentStage);
     if (def.code === 'HEAD_APPROVAL') return !!this.scopeOf(user, 'cad.approve');
     const scope = this.scopeOf(user, 'stage.act');
     if (!scope) return false;

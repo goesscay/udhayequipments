@@ -1,23 +1,27 @@
 import { Injectable } from '@nestjs/common';
-import { STAGE_BY_CODE, type PermissionKey, type Scope, type StageCode, type TeamCode } from '@udhay/shared';
+import { type PermissionKey, type Scope, type StageCode, type TeamCode } from '@udhay/shared';
 import { PrismaService } from '../prisma/prisma.module';
+import { WorkflowConfigService } from '../settings/workflow-config.service';
 
 /** Works out who should hear about something, based on roles, permissions and teams. */
 @Injectable()
 export class RecipientsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly workflow: WorkflowConfigService,
+  ) {}
 
   /** The assignee if there is one; otherwise everyone who can act on the stage. */
   async stageOwners(stage: StageCode, assigneeId: string | null): Promise<string[]> {
     if (assigneeId) return [assigneeId];
-    const team = STAGE_BY_CODE[stage].team;
+    const team = this.workflow.stage(stage).team;
     if (team === 'MANAGEMENT') return this.withPermission('cad.approve');
     return this.withPermission('stage.act', { team });
   }
 
   /** Heads of the team that owns the stage (users who can assign work within that team). */
   teamHeads(stage: StageCode): Promise<string[]> {
-    const team = STAGE_BY_CODE[stage].team;
+    const team = this.workflow.stage(stage).team;
     if (team === 'MANAGEMENT') return Promise.resolve([]);
     return this.withPermission('stage.assign', { team, scopes: ['TEAM'] });
   }

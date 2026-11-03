@@ -1,7 +1,7 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
-import { STAGE_BY_CODE, TEAM_LABELS, type DashboardSummary } from '@udhay/shared';
+import { TEAM_LABELS, type DashboardSummary } from '@udhay/shared';
 import {
   AlertTriangle,
   CheckCircle2,
@@ -18,7 +18,7 @@ import {
 import Link from 'next/link';
 import { PageHeader } from '@/components/app-shell';
 import { StagePipelineChart } from '@/components/stage-pipeline-chart';
-import { DueBadge, StageBadge } from '@/components/status';
+import { DueBadge, StageBadge, StageName } from '@/components/status';
 import { Card, CardHeader, EmptyState, Skeleton } from '@/components/ui/card';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
@@ -183,7 +183,7 @@ export default function DashboardPage() {
                           <span className="font-medium">{a.by}</span>{' '}
                           <span className="text-muted">{humanize(a.action)}</span>
                           {a.toStage && a.toStage !== a.fromStage && (
-                            <> → <span className="font-medium">{STAGE_BY_CODE[a.toStage].short}</span></>
+                            <> → <span className="font-medium"><StageName stage={a.toStage} show="short" /></span></>
                           )}
                         </p>
                         <p className="text-[11px] text-muted">

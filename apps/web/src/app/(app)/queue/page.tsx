@@ -1,12 +1,12 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
-import { STAGE_BY_CODE, type QueueItem, type TicketListItem } from '@udhay/shared';
+import { type QueueItem, type TicketListItem } from '@udhay/shared';
 import { ChevronRight } from 'lucide-react';
 import Link from 'next/link';
 import { PageHeader } from '@/components/app-shell';
 import { TicketRows } from '@/components/service/tickets';
-import { DueBadge, PriorityBadge, StageBadge } from '@/components/status';
+import { DueBadge, PriorityBadge, StageBadge, StageName } from '@/components/status';
 import { Badge, Card, EmptyState, Skeleton } from '@/components/ui/card';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
@@ -81,7 +81,7 @@ function Section({ title, items }: { title: string; items: QueueItem[] }) {
                 </div>
                 <p className="mt-1 truncate font-medium">{q.project.customerName}</p>
                 <p className="truncate text-[12px] text-muted">
-                  {STAGE_BY_CODE[q.stage].label}
+                  <StageName stage={q.stage} />
                   {q.project.city ? ` · ${q.project.city}` : ''}
                   {q.assignee ? ` · ${q.assignee.name}` : ' · Unassigned'}
                 </p>

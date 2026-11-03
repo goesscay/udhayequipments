@@ -8,6 +8,7 @@ import {
   IsBoolean,
   IsIn,
   IsInt,
+  IsObject,
   IsOptional,
   Max,
   Min,
@@ -19,6 +20,7 @@ import type { AuthUser } from '../common/types';
 import { PrismaService } from '../prisma/prisma.module';
 import { AppRulesService } from './app-rules.service';
 import { DemoDataService } from './demo-data.service';
+import { WorkflowConfigService } from './workflow-config.service';
 
 class StageSlaDto {
   @IsIn(STAGE_CODES) stage: StageCode;
@@ -39,6 +41,12 @@ class TicketSlaDto implements Partial<Record<Priority, number>> {
   @IsOptional() @IsInt() @Min(1) @Max(2_000) HIGH?: number;
   @IsOptional() @IsInt() @Min(1) @Max(2_000) NORMAL?: number;
   @IsOptional() @IsInt() @Min(1) @Max(2_000) LOW?: number;
+}
+
+/** Checked field by field by normaliseWorkflowConfig; unknown keys are dropped there. */
+class UpdateWorkflowDto {
+  @IsObject() stages: Record<string, unknown>;
+  @IsObject() transitions: Record<string, unknown>;
 }
 
 class UpdateRulesDto {
@@ -105,7 +113,21 @@ class SettingsController {
     private readonly settings: SettingsService,
     private readonly rules: AppRulesService,
     private readonly demo: DemoDataService,
+    private readonly workflow: WorkflowConfigService,
   ) {}
+
+  @Get('workflow')
+  @RequirePermissions('settings.manage')
+  async getWorkflow() {
+    return { config: this.workflow.stored, activeProjects: await this.workflow.usage() };
+  }
+
+  @Put('workflow')
+  @RequirePermissions('settings.manage')
+  async updateWorkflow(@CurrentUser() user: AuthUser, @Body() dto: UpdateWorkflowDto) {
+    const config = await this.workflow.update(user, dto);
+    return { config, activeProjects: await this.workflow.usage() };
+  }
 
   @Get('demo-data')
   @RequirePermissions('settings.manage')
@@ -156,6 +178,23 @@ class SettingsController {
   }
 }
 
+/** The configured workflow, readable by everyone signed in so stage names show the same everywhere. */
+@ApiTags('settings')
+@ApiBearerAuth()
+@Controller('workflow')
+class WorkflowController {
+  constructor(private readonly workflow: WorkflowConfigService) {}
+
+  @Get()
+  get() {
+    return this.workflow.stored;
+  }
+}
+
 @Global()
-@Module({ controllers: [SettingsController], providers: [SettingsService, AppRulesService, DemoDataService], exports: [AppRulesService] })
+@Module({
+  controllers: [SettingsController, WorkflowController],
+  providers: [SettingsService, AppRulesService, DemoDataService, WorkflowConfigService],
+  exports: [AppRulesService, WorkflowConfigService],
+})
 export class SettingsModule {}

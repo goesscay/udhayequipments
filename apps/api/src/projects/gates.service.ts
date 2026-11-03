@@ -14,15 +14,16 @@ export class GatesService {
   constructor(private readonly rules: AppRulesService) {}
 
   async blockers(db: Db, projectId: string, def: TransitionDef): Promise<string[]> {
-    switch (`${def.from}:${def.action}`) {
-      case 'HEAD_APPROVAL:APPROVE': {
-        const rules = await this.rules.get();
-        if (rules.advanceBeforeProduction && !(await this.settled(db, projectId, 'ADVANCE'))) {
-          return ['Advance payment not received yet'];
-        }
-        return [];
+    // Keyed on the destination, so it still applies when earlier stages are switched off in Settings → Workflow.
+    if (def.to === 'PRODUCTION' && def.from !== 'PRODUCTION') {
+      const rules = await this.rules.get();
+      if (rules.advanceBeforeProduction && !(await this.settled(db, projectId, 'ADVANCE'))) {
+        return ['Advance payment not received yet'];
       }
+      return [];
+    }
 
+    switch (`${def.from}:${def.action}`) {
       case 'PRODUCTION:COMPLETE': {
         const items = await db.productionItem.findMany({
           where: { projectId },

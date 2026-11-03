@@ -1,11 +1,12 @@
 import { Injectable, Module, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { NotificationType } from '@udhay/shared';
-import { OPEN_TICKET_STATUSES, STAGE_BY_CODE, TEAM_LABELS } from '@udhay/shared';
+import { OPEN_TICKET_STATUSES, TEAM_LABELS } from '@udhay/shared';
 import { JobRunner } from '../jobs/jobs.module';
 import { NotificationsService } from '../notifications/notifications.service';
 import { RecipientsService } from '../notifications/recipients.service';
 import { PrismaService } from '../prisma/prisma.module';
+import { WorkflowConfigService } from '../settings/workflow-config.service';
 import { SLA_EXEMPT_STAGES, formatDuration, slaLevelFor, type SlaConfig, type SlaLevel } from './sla-levels';
 
 const ALERT_TYPE: Record<Exclude<SlaLevel, 0>, NotificationType> = {
@@ -31,6 +32,7 @@ export class SlaService implements OnModuleInit {
 
   constructor(
     private readonly prisma: PrismaService,
+    private readonly workflow: WorkflowConfigService,
     private readonly recipients: RecipientsService,
     private readonly notifications: NotificationsService,
     private readonly runner: JobRunner,
@@ -89,7 +91,7 @@ export class SlaService implements OnModuleInit {
         level >= 3 ? this.recipients.admins() : Promise.resolve([]),
       ]);
 
-      const def = STAGE_BY_CODE[s.stage];
+      const def = this.workflow.stage(s.stage);
       const label = `${s.project.customer.name} (${s.project.code}) · ${def.label}`;
       const holder = `${TEAM_LABELS[def.team]} · ${s.assignee?.name ?? 'unassigned'}`;
       const late = formatDuration(now.getTime() - s.dueAt!.getTime());

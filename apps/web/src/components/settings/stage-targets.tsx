@@ -1,13 +1,14 @@
 'use client';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { STAGE_BY_CODE, TEAM_LABELS, type StageCode } from '@udhay/shared';
+import { TEAM_LABELS, type StageCode } from '@udhay/shared';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Card, Skeleton } from '@/components/ui/card';
 import { Input } from '@/components/ui/form';
 import { api } from '@/lib/api';
+import { useWorkflow } from '@/lib/workflow';
 
 interface StageSla {
   stage: StageCode;
@@ -19,6 +20,7 @@ const describe = (h: number) => (h >= 48 ? `${+(h / 24).toFixed(1)} days` : `${h
 
 export function StageTargets() {
   const qc = useQueryClient();
+  const wf = useWorkflow();
   const { data, isLoading } = useQuery({ queryKey: ['stage-slas'], queryFn: () => api<StageSla[]>('/settings/stage-slas') });
   const [values, setValues] = useState<Record<string, string>>({});
 
@@ -56,7 +58,7 @@ export function StageTargets() {
       </div>
       <ul className="divide-y">
         {parsed.map((s, i) => {
-          const def = STAGE_BY_CODE[s.stage];
+          const def = wf.stage(s.stage);
           const bad = !Number.isInteger(s.next) || s.next < 1 || s.next > 17_520;
           return (
             <li key={s.stage} className="flex items-center gap-3 px-4 py-2.5">
@@ -65,6 +67,7 @@ export function StageTargets() {
                 <p className="truncate text-[13px] font-medium">{def.label}</p>
                 <p className="text-[11px] text-muted">
                   {TEAM_LABELS[def.team]} · default {describe(s.defaultHours)}
+                  {!def.enabled && ' · switched off'}
                 </p>
               </div>
               <div className="flex items-center gap-2">

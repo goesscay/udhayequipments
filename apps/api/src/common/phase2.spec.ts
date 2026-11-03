@@ -3,7 +3,7 @@ import { describe, it } from 'node:test';
 import { addMonths } from '../installation/dates';
 import { parseItemLine } from '../production/item-line';
 import { median, monthKey, monthsBetween, parseRange, toCsv } from '../reports/report-math';
-import { mapDepartment, normalizePhone, tidyName } from '@udhay/shared';
+import { mapDepartment, normaliseWorkflowConfig, normalizePhone, resolveWorkflow, tidyName } from '@udhay/shared';
 import { extractMentions, plainMentions } from './mentions';
 import { temporaryPassword } from './passwords';
 
@@ -117,5 +117,58 @@ describe('people helpers', () => {
       seen.add(pw);
     }
     assert.equal(seen.size, 200);
+  });
+});
+
+describe('configurable workflow', () => {
+  it('matches the built-in workflow when nothing is configured', () => {
+    const wf = resolveWorkflow();
+    assert.equal(wf.activeStages.length, 14);
+    assert.equal(wf.find('SITE_SURVEY', 'SUBMIT')?.to, 'QUOTATION_PREP');
+    assert.deepEqual(wf.progress('LEAD'), { step: 1, total: 14 });
+  });
+
+  it('skips switched-off stages going forward and drops returns into them', () => {
+    const wf = resolveWorkflow({ stages: { CAD_DRAWING: { enabled: false }, HEAD_APPROVAL: { enabled: false } }, transitions: {} });
+    assert.equal(wf.find('LAYOUT_APPROVAL', 'APPROVE')?.to, 'PRODUCTION');
+    assert.equal(wf.activeStages.length, 12);
+    // A project still in Head Approval can finish it, but can't be sent back to a stage that is off.
+    assert.equal(wf.find('HEAD_APPROVAL', 'APPROVE')?.to, 'PRODUCTION');
+    assert.equal(wf.find('HEAD_APPROVAL', 'REJECT'), undefined);
+    assert.deepEqual(wf.progress('HEAD_APPROVAL'), { step: 8, total: 12 });
+  });
+
+  it('applies renames, teams, documents and switched-off side paths', () => {
+    const wf = resolveWorkflow({
+      stages: { SITE_SURVEY: { label: 'Site visit', team: 'SALES' } },
+      transitions: {
+        'SITE_SURVEY.SUBMIT': { label: 'Send to quotes', requiresDocuments: ['MEASUREMENT', 'SITE_PHOTO'] },
+        'LEAD.MARK_LOST': { enabled: false },
+      },
+    });
+    assert.equal(wf.stage('SITE_SURVEY').label, 'Site visit');
+    assert.equal(wf.stage('SITE_SURVEY').team, 'SALES');
+    assert.deepEqual(wf.find('SITE_SURVEY', 'SUBMIT')?.requiresDocuments, ['MEASUREMENT', 'SITE_PHOTO']);
+    assert.equal(wf.find('LEAD', 'MARK_LOST'), undefined);
+    assert.equal(wf.from('LEAD').length, 1);
+  });
+
+  it('stores only real changes and refuses ones that would break the workflow', () => {
+    const cfg = normaliseWorkflowConfig({
+      stages: {
+        LEAD: { label: 'Lead & Requirement', enabled: false }, // default label; Lead can't be switched off
+        HEAD_APPROVAL: { team: 'CAD' }, // fixed team
+        PRODUCTION: { label: '  Fabrication  ', team: 'NOPE' },
+        BOGUS: { label: 'x' },
+      },
+      transitions: {
+        'SITE_SURVEY.SUBMIT': { enabled: false, requiresDocuments: ['MEASUREMENT', 'NOT_A_DOC'] }, // main step stays on
+        'LEAD.MARK_LOST': { reasonRequired: false, enabled: false },
+      },
+    });
+    assert.deepEqual(cfg, {
+      stages: { PRODUCTION: { label: 'Fabrication' } },
+      transitions: { 'LEAD.MARK_LOST': { enabled: false } },
+    });
   });
 });

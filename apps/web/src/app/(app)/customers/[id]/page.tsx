@@ -1,14 +1,14 @@
 'use client';
 
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { STAGE_BY_CODE, type ProjectListItem } from '@udhay/shared';
+import { type ProjectListItem } from '@udhay/shared';
 import { ArrowLeft, Mail, MapPin, Pencil, Phone, Plus } from 'lucide-react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useState } from 'react';
 import { PageHeader } from '@/components/app-shell';
 import { CustomerForm, type Customer } from '@/components/customer-form';
-import { DueBadge, StageBadge, StatusBadge } from '@/components/status';
+import { DueBadge, StageBadge, StageName, StatusBadge } from '@/components/status';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Card, CardHeader, EmptyState, Skeleton } from '@/components/ui/card';
 import { Sheet } from '@/components/ui/sheet';
@@ -105,7 +105,7 @@ export default function CustomerPage() {
                         <StatusBadge status={p.status} />
                       </div>
                       <p className="mt-0.5 truncate text-[13px] font-medium">{p.title}</p>
-                      <p className="text-[11px] text-muted">{STAGE_BY_CODE[p.currentStage].label}</p>
+                      <p className="text-[11px] text-muted"><StageName stage={p.currentStage} /></p>
                     </div>
                     <div className="flex flex-col items-end gap-1">
                       {p.status === 'ACTIVE' && <DueBadge startedAt={p.stageStartedAt} dueAt={p.stageDueAt} />}

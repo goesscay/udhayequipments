@@ -1,15 +1,18 @@
 'use client';
 
-import { STAGE_BY_CODE, type DashboardSummary } from '@udhay/shared';
+import { type DashboardSummary } from '@udhay/shared';
 import { useRouter } from 'next/navigation';
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { useWorkflow } from '@/lib/workflow';
 
 export function StagePipelineChart({ data }: { data: DashboardSummary['stageCounts'] }) {
   const router = useRouter();
-  const rows = data.map((d) => ({
+  const wf = useWorkflow();
+  // Switched-off stages only show while projects are still sitting in them.
+  const rows = data.filter((d) => wf.stage(d.stage).enabled || d.count > 0).map((d) => ({
     ...d,
-    name: STAGE_BY_CODE[d.stage].short,
-    label: STAGE_BY_CODE[d.stage].label,
+    name: wf.stage(d.stage).short,
+    label: wf.stage(d.stage).label,
     onTrack: d.count - d.overdue,
   }));
   const openStage = (bar: { payload?: { stage?: string } }) => {

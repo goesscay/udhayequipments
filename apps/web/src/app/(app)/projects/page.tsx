@@ -3,11 +3,8 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import {
   PROJECT_STATUSES,
-  STAGES,
-  STAGE_BY_CODE,
   TEAMS,
   TEAM_LABELS,
-  stageIndex,
   type Paginated,
   type ProjectListItem,
 } from '@udhay/shared';
@@ -16,13 +13,14 @@ import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useState } from 'react';
 import { PageHeader } from '@/components/app-shell';
-import { DemoBadge, DueBadge, PriorityBadge, StageBadge, StatusBadge } from '@/components/status';
+import { DemoBadge, DueBadge, PriorityBadge, StageBadge, StageName, StatusBadge } from '@/components/status';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Card, EmptyState, Skeleton } from '@/components/ui/card';
 import { Input, Select } from '@/components/ui/form';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { formatINR, humanize } from '@/lib/utils';
+import { useWorkflow } from '@/lib/workflow';
 
 export default function ProjectsPage() {
   return (
@@ -38,6 +36,7 @@ function ProjectsList() {
   const pathname = usePathname();
   const params = useSearchParams();
   const [search, setSearch] = useState(params.get('search') ?? '');
+  const wf = useWorkflow();
 
   const setParam = (key: string, value: string) => {
     const next = new URLSearchParams(params);
@@ -91,8 +90,8 @@ function ProjectsList() {
         <div className="-mx-4 flex gap-2 overflow-x-auto no-scrollbar px-4 md:mx-0 md:px-0">
           <Select value={params.get('stage') ?? ''} onChange={(e) => setParam('stage', e.target.value)} className="w-auto min-w-36">
             <option value="">All stages</option>
-            {STAGES.map((s) => (
-              <option key={s.code} value={s.code}>{s.label}</option>
+            {wf.stages.map((s) => (
+              <option key={s.code} value={s.code}>{s.label}{s.enabled ? '' : ' (off)'}</option>
             ))}
           </Select>
           <Select value={params.get('team') ?? ''} onChange={(e) => setParam('team', e.target.value)} className="w-auto min-w-32">
@@ -174,7 +173,7 @@ function ProjectsList() {
                       </p>
                     </td>
                     <td className="px-4 py-3">
-                      <p>{STAGE_BY_CODE[p.currentStage].label}</p>
+                      <p><StageName stage={p.currentStage} /></p>
                       <p className="text-[12px] text-muted">{TEAM_LABELS[p.currentTeam]}</p>
                     </td>
                     <td className="px-4 py-3">
@@ -227,14 +226,15 @@ function ProjectsList() {
 }
 
 function StageProgress({ stage, className }: { stage: ProjectListItem['currentStage']; className?: string }) {
-  const pct = ((stageIndex(stage) + 1) / STAGES.length) * 100;
+  const { step, total } = useWorkflow().progress(stage);
+  const pct = (step / total) * 100;
   return (
-    <div className={className} title={`Stage ${stageIndex(stage) + 1} of ${STAGES.length}`}>
+    <div className={className} title={`Stage ${step} of ${total}`}>
       <div className="h-1.5 overflow-hidden rounded-none bg-surface ring-1 ring-line">
         <div className="h-full rounded-none bg-brand" style={{ width: `${pct}%` }} />
       </div>
       <p className="tabular mt-1 text-[10px] text-muted">
-        {stageIndex(stage) + 1}/{STAGES.length}
+        {step}/{total}
       </p>
     </div>
   );

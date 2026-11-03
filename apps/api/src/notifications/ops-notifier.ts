@@ -1,6 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
-import { STAGE_BY_CODE } from '@udhay/shared';
 import {
   ProjectEvents,
   TicketEvents,
@@ -10,6 +9,7 @@ import {
   type TicketEvent,
 } from '../common/events';
 import { PrismaService } from '../prisma/prisma.module';
+import { WorkflowConfigService } from '../settings/workflow-config.service';
 import { NotificationsService } from './notifications.service';
 import { RecipientsService } from './recipients.service';
 
@@ -22,6 +22,7 @@ export class OpsNotifier {
 
   constructor(
     private readonly prisma: PrismaService,
+    private readonly workflow: WorkflowConfigService,
     private readonly recipients: RecipientsService,
     private readonly notifications: NotificationsService,
   ) {}
@@ -58,7 +59,7 @@ export class OpsNotifier {
         userIds: [handoff.byUserId],
         excludeUserId: e.actorId,
         type: 'HANDOFF_ACCEPTED',
-        title: `${actor} accepted ${project.label} · ${STAGE_BY_CODE[e.stage].label}`,
+        title: `${actor} accepted ${project.label} · ${this.workflow.stage(e.stage).label}`,
         projectId: e.projectId,
       });
     });

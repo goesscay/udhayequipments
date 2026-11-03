@@ -4,8 +4,6 @@ import type { Prisma } from '@prisma/client';
 import {
   PAYMENT_KIND_LABELS,
   PROJECT_STATUSES,
-  STAGES,
-  STAGE_BY_CODE,
   TEAM_LABELS,
   type ReportSummary,
 } from '@udhay/shared';
@@ -14,6 +12,7 @@ import { AccessService } from '../access/access.service';
 import { CurrentUser, RequirePermissions } from '../common/decorators';
 import type { AuthUser } from '../common/types';
 import { PrismaService } from '../prisma/prisma.module';
+import { WorkflowConfigService } from '../settings/workflow-config.service';
 import { average, median, monthKey, monthsBetween, parseRange, round1, toCsv } from './report-math';
 
 const HOUR = 3_600_000;
@@ -26,6 +25,7 @@ const iso = (d: Date | null | undefined) => (d ? d.toISOString().slice(0, 16).re
 class ReportsService {
   constructor(
     private readonly prisma: PrismaService,
+    private readonly workflow: WorkflowConfigService,
     private readonly access: AccessService,
   ) {}
 
@@ -65,7 +65,7 @@ class ReportsService {
       this.prisma.project.groupBy({ by: ['status'], where: projects, _count: { _all: true } }),
     ]);
 
-    const stageDurations = STAGES.map((s) => {
+    const stageDurations = this.workflow.current.stages.map((s) => {
       const rows = stages.filter((r) => r.stage === s.code && r.completedAt);
       const hours = rows.map((r) => (r.completedAt!.getTime() - r.startedAt.getTime()) / HOUR);
       const withDue = rows.filter((r) => r.dueAt);
@@ -153,7 +153,7 @@ class ReportsService {
           ['Code', 'Title', 'Customer', 'Phone', 'City', 'Status', 'Stage', 'With team', 'Priority', 'Sales owner', ...(showPrice ? ['Value (INR)'] : []), 'Created', 'Closed'],
           rows.map((p) => [
             p.code, p.title, p.customer.name, p.customer.phone, p.city, p.status,
-            STAGE_BY_CODE[p.currentStage].label, TEAM_LABELS[p.currentTeam], p.priority, p.salesOwner.name,
+            this.workflow.stage(p.currentStage).label, TEAM_LABELS[p.currentTeam], p.priority, p.salesOwner.name,
             ...(showPrice ? [p.estimatedValue == null ? null : Number(p.estimatedValue)] : []),
             iso(p.createdAt), iso(p.closedAt),
           ]),
@@ -168,7 +168,7 @@ class ReportsService {
         return toCsv(
           ['Project', 'Stage', 'Team', 'Round', 'Handled by', 'Started', 'Completed', 'Hours taken', 'Due', 'Late'],
           rows.map((s) => [
-            s.project.code, STAGE_BY_CODE[s.stage].label, TEAM_LABELS[s.team], s.cycle, s.assignee?.name,
+            s.project.code, this.workflow.stage(s.stage).label, TEAM_LABELS[s.team], s.cycle, s.assignee?.name,
             iso(s.startedAt), iso(s.completedAt),
             s.completedAt ? round1((s.completedAt.getTime() - s.startedAt.getTime()) / HOUR) : null,
             iso(s.dueAt), s.dueAt && s.completedAt ? (s.completedAt > s.dueAt ? 'Yes' : 'No') : '',
