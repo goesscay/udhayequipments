@@ -3,6 +3,7 @@
 import { ChevronRight, KeyRound, LogOut } from 'lucide-react';
 import Link from 'next/link';
 import { PageHeader, visibleNav } from '@/components/app-shell';
+import { PhoneNotificationsCard } from '@/components/phone-notifications';
 import { Card } from '@/components/ui/card';
 import { useAuth } from '@/lib/auth';
 
@@ -23,6 +24,7 @@ export default function MorePage() {
           </Link>
         ))}
       </Card>
+      <PhoneNotificationsCard className="mt-4" />
       <Card className="mt-4 divide-y overflow-hidden">
         <Link href="/change-password" className="flex items-center gap-3 px-4 py-3.5 hover:bg-surface">
           <KeyRound className="size-5 text-muted" />

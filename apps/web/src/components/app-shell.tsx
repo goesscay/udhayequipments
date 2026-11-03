@@ -25,7 +25,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import { useAuth } from '@/lib/auth';
-import { useUnreadCount } from '@/lib/notifications';
+import { useNotificationAlerts, useUnreadCount } from '@/lib/notifications';
 import { cn } from '@/lib/utils';
 
 interface NavItem {
@@ -101,7 +101,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const { user, can, logout } = useAuth();
   const [collapsed, toggleCollapsed] = useSidebarCollapsed();
   const pathname = usePathname();
-  const { data: unread = 0 } = useUnreadCount();
+  const { data: unreadCount } = useUnreadCount();
+  const unread = unreadCount ?? 0;
+  useNotificationAlerts(unreadCount);
   const items = visibleNav(user);
   // The mobile bottom bar has room for four items: the first three, then "More" for the rest.
   // Notifications live in the mobile top bar instead.
@@ -210,29 +212,26 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </aside>
 
       {/* Mobile top bar */}
-      <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b bg-white/90 px-4 backdrop-blur md:hidden">
+      <header className="pt-safe sticky top-0 z-30 flex h-[calc(3.5rem+env(safe-area-inset-top))] items-center justify-between border-b bg-white/90 px-4 backdrop-blur md:hidden">
         <Image src="/logo.png" alt="UDHAY" width={120} height={32} className="h-7 w-auto" priority />
         <div className="flex items-center gap-1">
           <Link
             href="/notifications"
-            className={cn('relative grid size-9 place-items-center rounded-lg text-muted', isActive('/notifications') && 'text-brand-600')}
+            className={cn('relative grid size-10 place-items-center rounded-lg text-muted', isActive('/notifications') && 'text-brand-600')}
             aria-label={unread ? `Notifications, ${unread} unread` : 'Notifications'}
           >
             <Bell className="size-5" />
             {unread > 0 && <CountBadge count={unread} className="absolute -right-0.5 -top-0.5" />}
           </Link>
           {can('project.create') && (
-            <Link href="/projects/new" className="grid size-9 place-items-center rounded-lg bg-brand text-white" aria-label="New project">
+            <Link href="/projects/new" className="grid size-10 place-items-center rounded-lg bg-brand text-white" aria-label="New project">
               <Plus className="size-4" />
             </Link>
           )}
-          <button onClick={logout} className="grid size-9 place-items-center rounded-lg text-muted" aria-label="Sign out">
-            <LogOut className="size-4" />
-          </button>
         </div>
       </header>
 
-      <main className="mx-auto max-w-7xl px-4 pb-24 pt-4 md:px-8 md:pb-10 md:pt-6">{children}</main>
+      <main className="mx-auto max-w-7xl px-4 pb-[calc(5.5rem+env(safe-area-inset-bottom))] pt-4 md:px-8 md:pb-10 md:pt-6">{children}</main>
 
       {/* Mobile bottom navigation */}
       <nav className="pb-safe fixed inset-x-0 bottom-0 z-30 border-t bg-white md:hidden">
@@ -242,7 +241,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               key={href}
               href={href}
               className={cn(
-                'flex flex-col items-center gap-1 py-2 text-[11px] text-muted',
+                'flex min-h-14 flex-col items-center justify-center gap-1 py-2 text-[11px] text-muted active:bg-surface',
                 isActive(href) && 'font-medium text-brand-600',
               )}
             >

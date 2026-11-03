@@ -181,34 +181,35 @@ model User {
   roleId             String
   teamId             String?
   lastLoginAt        DateTime?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
-  deletedAt    DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  deletedAt          DateTime?
 
   role Role  @relation(fields: [roleId], references: [id])
   team Team? @relation(fields: [teamId], references: [id])
 
-  refreshTokens    RefreshToken[]
-  ownedProjects    Project[]          @relation("ProjectSalesOwner")
-  createdProjects  Project[]          @relation("ProjectCreatedBy")
-  assignedStages   ProjectStage[]     @relation("StageAssignee")
-  acceptedStages   ProjectStage[]     @relation("StageAcceptedBy")
-  transitions      StageTransition[]
-  documents        Document[]
-  comments         Comment[]
-  createdCustomers Customer[]
-  auditLogs        AuditLog[]
-  notifications    Notification[]
-  paymentsCreated  PaymentMilestone[] @relation("PaymentCreatedBy")
-  paymentsRecorded PaymentMilestone[] @relation("PaymentRecordedBy")
-  qcChecks         ProductionItem[]   @relation("ItemQcBy")
-  tripsCreated     DispatchTrip[]
-  snagsRaised      Snag[]             @relation("SnagRaisedBy")
-  snagsResolved    Snag[]             @relation("SnagResolvedBy")
-  handovers        Handover[]
-  ticketsRaised    ServiceTicket[]    @relation("TicketRaisedBy")
-  ticketsAssigned  ServiceTicket[]    @relation("TicketAssignee")
-  serviceVisits    ServiceVisit[]
+  refreshTokens     RefreshToken[]
+  ownedProjects     Project[]          @relation("ProjectSalesOwner")
+  createdProjects   Project[]          @relation("ProjectCreatedBy")
+  assignedStages    ProjectStage[]     @relation("StageAssignee")
+  acceptedStages    ProjectStage[]     @relation("StageAcceptedBy")
+  transitions       StageTransition[]
+  documents         Document[]
+  comments          Comment[]
+  createdCustomers  Customer[]
+  auditLogs         AuditLog[]
+  notifications     Notification[]
+  pushSubscriptions PushSubscription[]
+  paymentsCreated   PaymentMilestone[] @relation("PaymentCreatedBy")
+  paymentsRecorded  PaymentMilestone[] @relation("PaymentRecordedBy")
+  qcChecks          ProductionItem[]   @relation("ItemQcBy")
+  tripsCreated      DispatchTrip[]
+  snagsRaised       Snag[]             @relation("SnagRaisedBy")
+  snagsResolved     Snag[]             @relation("SnagResolvedBy")
+  handovers         Handover[]
+  ticketsRaised     ServiceTicket[]    @relation("TicketRaisedBy")
+  ticketsAssigned   ServiceTicket[]    @relation("TicketAssignee")
+  serviceVisits     ServiceVisit[]
 
   @@index([teamId])
 }
@@ -303,7 +304,7 @@ model Project {
 model ProjectStage {
   id            String      @id @default(cuid())
   projectId     String
-  stage         String    @db.VarChar(40)
+  stage         String      @db.VarChar(40)
   team          TeamCode
   cycle         Int         @default(1)
   status        StageStatus @default(OPEN)
@@ -327,14 +328,14 @@ model ProjectStage {
 }
 
 model StageTransition {
-  id        String     @id @default(cuid())
+  id        String   @id @default(cuid())
   projectId String
-  fromStage String?   @db.VarChar(40)
-  toStage   String?   @db.VarChar(40)
-  action    String     @db.VarChar(40)
-  reason    String?    @db.Text
+  fromStage String?  @db.VarChar(40)
+  toStage   String?  @db.VarChar(40)
+  action    String   @db.VarChar(40)
+  reason    String?  @db.Text
   byUserId  String
-  createdAt DateTime   @default(now())
+  createdAt DateTime @default(now())
 
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
   byUser  User    @relation(fields: [byUserId], references: [id])
@@ -346,7 +347,7 @@ model StageTransition {
 model Document {
   id           String       @id @default(cuid())
   projectId    String
-  stage        String    @db.VarChar(40)
+  stage        String       @db.VarChar(40)
   type         DocumentType
   version      Int
   fileName     String
@@ -380,15 +381,32 @@ model Notification {
   @@index([createdAt])
 }
 
+/**
+ * A phone or browser that receives web push for a user (one row per device).
+ */
+model PushSubscription {
+  id        String   @id @default(cuid())
+  userId    String
+  endpoint  String   @unique @db.VarChar(700)
+  p256dh    String   @db.VarChar(200)
+  auth      String   @db.VarChar(100)
+  userAgent String?  @db.VarChar(300)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
 model Comment {
-  id        String     @id @default(cuid())
+  id        String   @id @default(cuid())
   projectId String
-  stage     String?   @db.VarChar(40)
-  body      String     @db.Text
+  stage     String?  @db.VarChar(40)
+  body      String   @db.Text
   /// User ids mentioned with @ in the body
   mentions  Json?
   authorId  String
-  createdAt DateTime   @default(now())
+  createdAt DateTime @default(now())
 
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
   author  User    @relation(fields: [authorId], references: [id])
@@ -464,22 +482,22 @@ model PaymentMilestone {
 
 /// One equipment item on the production floor (cooking range, sink unit, hood...).
 model ProductionItem {
-  id        String     @id @default(cuid())
+  id        String           @id @default(cuid())
   projectId String
-  name      String     @db.VarChar(160)
-  quantity  Int        @default(1)
-  spec      String?    @db.Text
-  status    ItemStatus @default(NOT_STARTED)
+  name      String           @db.VarChar(160)
+  quantity  Int              @default(1)
+  spec      String?          @db.Text
+  status    ItemStatus       @default(NOT_STARTED)
   /// Level being worked on (Laser & Bending, Fabrication, Welding, Polish); null before work starts.
   level     ProductionLevel?
-  progress  Int        @default(0)
-  qcStatus  QcStatus   @default(PENDING)
-  qcNotes   String?    @db.Text
+  progress  Int              @default(0)
+  qcStatus  QcStatus         @default(PENDING)
+  qcNotes   String?          @db.Text
   qcById    String?
   qcAt      DateTime?
-  sortOrder Int        @default(0)
-  createdAt DateTime   @default(now())
-  updatedAt DateTime   @updatedAt
+  sortOrder Int              @default(0)
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
 
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
   qcBy    User?   @relation("ItemQcBy", fields: [qcById], references: [id])

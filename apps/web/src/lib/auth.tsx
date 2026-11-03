@@ -4,6 +4,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import type { AuthResponse, PermissionKey, SessionUser } from '@udhay/shared';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { api, refreshSession, setAccessToken, setSessionLostHandler } from './api';
+import { forgetPushDevice } from './pwa';
 
 interface AuthState {
   user: SessionUser | null;
@@ -41,6 +42,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const logout = useCallback(async () => {
+    await forgetPushDevice();
     await api('/auth/logout', { method: 'POST' }).catch(() => undefined);
     setAccessToken(null);
     setUser(null);

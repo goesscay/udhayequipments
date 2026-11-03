@@ -87,20 +87,20 @@ function ProjectsList() {
             className="pl-9"
           />
         </div>
-        <div className="-mx-4 flex gap-2 overflow-x-auto no-scrollbar px-4 md:mx-0 md:px-0">
-          <Select value={params.get('stage') ?? ''} onChange={(e) => setParam('stage', e.target.value)} className="w-auto min-w-36">
+        <div className="grid grid-cols-2 gap-2 md:flex">
+          <Select value={params.get('stage') ?? ''} onChange={(e) => setParam('stage', e.target.value)} className="w-full md:w-auto md:min-w-36">
             <option value="">All stages</option>
             {wf.stages.map((s) => (
               <option key={s.code} value={s.code}>{s.label}{s.enabled ? '' : ' (off)'}</option>
             ))}
           </Select>
-          <Select value={params.get('team') ?? ''} onChange={(e) => setParam('team', e.target.value)} className="w-auto min-w-32">
+          <Select value={params.get('team') ?? ''} onChange={(e) => setParam('team', e.target.value)} className="w-full md:w-auto md:min-w-32">
             <option value="">All teams</option>
             {TEAMS.map((t) => (
               <option key={t} value={t}>{TEAM_LABELS[t]}</option>
             ))}
           </Select>
-          <Select value={params.get('status') ?? ''} onChange={(e) => setParam('status', e.target.value)} className="w-auto min-w-32">
+          <Select value={params.get('status') ?? ''} onChange={(e) => setParam('status', e.target.value)} className="w-full md:w-auto md:min-w-32">
             <option value="">Any status</option>
             {PROJECT_STATUSES.map((s) => (
               <option key={s} value={s}>{humanize(s)}</option>

@@ -68,6 +68,32 @@ for (const [name, size, fill] of files) {
   console.log(`icons/${name}`);
 }
 
+/**
+ * Android status-bar badge for notifications: the mark as a white silhouette on transparent
+ * (Android only uses the alpha channel).
+ */
+async function badge(size) {
+  const inner = Math.round(size * 0.86);
+  const { data, info } = await sharp(mark)
+    .resize(inner, inner, { fit: 'contain', background: '#ffffff' })
+    .removeAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  const rgba = Buffer.alloc(info.width * info.height * 4);
+  for (let p = 0; p < info.width * info.height; p++) {
+    const lum = (data[p * 3] + data[p * 3 + 1] + data[p * 3 + 2]) / 3;
+    rgba.fill(255, p * 4, p * 4 + 3);
+    rgba[p * 4 + 3] = Math.max(0, Math.min(255, Math.round((235 - lum) * 3)));
+  }
+  const shape = await sharp(rgba, { raw: { width: info.width, height: info.height, channels: 4 } }).png().toBuffer();
+  return sharp({ create: { width: size, height: size, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } } })
+    .composite([{ input: shape, gravity: 'centre' }])
+    .png()
+    .toBuffer();
+}
+writeFileSync(join(out, 'badge-96.png'), await badge(96));
+console.log('icons/badge-96.png');
+
 /** favicon.ico holding PNG images (supported by every current browser). */
 function ico(images) {
   const header = Buffer.alloc(6);

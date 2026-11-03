@@ -19,6 +19,7 @@ import {
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { PageHeader } from '@/components/app-shell';
+import { PhoneNotificationsCard, PushBanner } from '@/components/phone-notifications';
 import { Button } from '@/components/ui/button';
 import { Card, EmptyState, Skeleton } from '@/components/ui/card';
 import { api } from '@/lib/api';
@@ -78,6 +79,8 @@ export default function NotificationsPage() {
           )
         }
       />
+
+      <PushBanner />
 
       <div className="mb-3 flex gap-1 rounded-lg border bg-white p-1 text-[13px] md:w-fit">
         {[
@@ -146,6 +149,8 @@ export default function NotificationsPage() {
           </Button>
         </div>
       )}
+
+      <PhoneNotificationsCard className="mt-6" />
     </div>
   );
 }

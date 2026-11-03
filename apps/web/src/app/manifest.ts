@@ -3,6 +3,7 @@ import type { MetadataRoute } from 'next';
 /** Lets staff "Add to Home screen" so the tracker opens like an app on their phones. */
 export default function manifest(): MetadataRoute.Manifest {
   return {
+    id: '/',
     name: 'UDHAY Project Tracker',
     short_name: 'UDHAY',
     description: 'Project tracking for UDHAY Hospitality Equipment & Service',

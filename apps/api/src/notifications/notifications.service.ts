@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import type { NotificationItem, NotificationPage, NotificationType } from '@udhay/shared';
 import { PrismaService } from '../prisma/prisma.module';
+import { PushService } from './push.service';
 
 export interface NotifyInput {
   userIds: string[];
@@ -14,7 +15,10 @@ export interface NotifyInput {
 
 @Injectable()
 export class NotificationsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly push: PushService,
+  ) {}
 
   async notify(input: NotifyInput) {
     const ids = [...new Set(input.userIds)].filter((id) => id !== input.excludeUserId);
@@ -27,6 +31,13 @@ export class NotificationsService {
         body: input.body ?? null,
         projectId: input.projectId ?? null,
       })),
+    });
+    // Phones and browsers get it as a system notification; not awaited so actions stay fast.
+    void this.push.send(ids, {
+      title: input.title.slice(0, 200),
+      body: input.body,
+      url: input.projectId ? `/projects/${input.projectId}` : '/notifications',
+      tag: input.projectId ?? input.type,
     });
     return ids.length;
   }
