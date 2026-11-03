@@ -13,7 +13,6 @@ import type {
   QcStatus,
   Scope,
   SnagStatus,
-  StageCode,
   TeamCode,
   TicketStatus,
   TripStatus,
@@ -23,7 +22,6 @@ type Same<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false;
 const assert = <T extends true>() => undefined as unknown as T;
 
 export const enumsInSync = [
-  assert<Same<$Enums.StageCode, StageCode>>(),
   assert<Same<$Enums.TeamCode, TeamCode>>(),
   assert<Same<$Enums.DocumentType, DocumentType>>(),
   assert<Same<$Enums.Scope, Scope>>(),

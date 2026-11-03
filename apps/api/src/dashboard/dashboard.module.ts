@@ -1,11 +1,12 @@
 import { Controller, Get, Injectable, Module } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import type { Prisma } from '@prisma/client';
-import { OPEN_TICKET_STATUSES, STAGES, TEAMS, type DashboardSummary } from '@udhay/shared';
+import { OPEN_TICKET_STATUSES, TEAMS, type DashboardSummary } from '@udhay/shared';
 import { AccessService } from '../access/access.service';
 import { CurrentUser, RequirePermissions } from '../common/decorators';
 import type { AuthUser } from '../common/types';
 import { PrismaService } from '../prisma/prisma.module';
+import { WorkflowConfigService } from '../settings/workflow-config.service';
 import { listInclude, toListItem } from '../projects/project.mapper';
 
 @Injectable()
@@ -13,6 +14,7 @@ class DashboardService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly access: AccessService,
+    private readonly workflow: WorkflowConfigService,
   ) {}
 
   async summary(user: AuthUser): Promise<DashboardSummary> {
@@ -102,7 +104,7 @@ class DashboardService {
         openTickets,
         dispatchesNext7Days,
       },
-      stageCounts: STAGES.map((s) => ({
+      stageCounts: this.workflow.current.stages.map((s) => ({
         stage: s.code,
         count: stageCount.get(s.code) ?? 0,
         overdue: stageOverdue.get(s.code) ?? 0,

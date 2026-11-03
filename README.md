@@ -39,9 +39,12 @@ Sign in with the seed credentials from `apps/api/.env` (`SEED_SUPERADMIN_EMAIL` 
 - Revision loops (quotation, layout, CAD rejection) reopen an earlier stage as a new cycle. The stage goes back to whoever handled it last, and a new document version is required.
 - **Handoffs:** the receiving team must *Accept* the handoff, and acceptance time is recorded.
 - SLA hours per stage are seeded into `StageSetting` and can be changed per stage.
-- **Settings → Workflow** (`settings.manage`): rename stages and action buttons, move a stage to another team, switch off optional stages (Site Survey, Quotation Shared, Layout Approval, CAD, Head Approval, Dispatch, Installation) and side paths (revisions, rejections, mark lost), and change which documents and reasons each step needs.
+- **Settings → Workflow** (`settings.manage`): **add new stages**, **change the order** (↑/↓), rename stages and action buttons, move a stage to another team, switch off optional stages (Site Survey, Quotation Shared, Layout Approval, CAD, Head Approval, Dispatch, Installation) and side paths (revisions, rejections, mark lost), and change which documents and reasons each step needs.
   - Only the differences from the built-in workflow are stored, as JSON in `AppSetting` (key `workflow`), and resolved by `resolveWorkflow()` in `packages/shared/src/workflow-config.ts`. The API holds the resolved workflow in memory (`WorkflowConfigService`) and every page reads it from `GET /api/workflow`.
   - A switched-off stage is skipped going forward; return paths into it are hidden. Projects already in it can still finish it.
+  - Every main forward step goes to the next stage in use in the configured order. An added stage gets a "Send to <next stage>" step and an optional "Send back" step (with a reason). Added stages have codes like `X_7KQ2MD`; stage columns are `VARCHAR(40)` since migration `20261103000000_custom_stages`.
+  - Order rules (`ORDER_RULES`): Lead first, Service last; Quotation → Quotation Shared → Customer Decision → BOQ → Production → Dispatch → Installation → Handover keep their order. Site Survey, Layout Approval, CAD and Head Approval can move freely. A return path that would now point forward is hidden.
+  - An added stage that projects have been through can be switched off but not deleted.
   - Moving a stage to another team also moves its open work. The advance-payment check runs on any step into Production, so it still applies when Head Approval is off.
 
 ### Auth

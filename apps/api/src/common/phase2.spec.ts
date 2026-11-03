@@ -3,7 +3,7 @@ import { describe, it } from 'node:test';
 import { addMonths } from '../installation/dates';
 import { parseItemLine } from '../production/item-line';
 import { median, monthKey, monthsBetween, parseRange, toCsv } from '../reports/report-math';
-import { mapDepartment, normaliseWorkflowConfig, normalizePhone, resolveWorkflow, tidyName } from '@udhay/shared';
+import { mapDepartment, normaliseWorkflowConfig, normalizePhone, resolveWorkflow, tidyName, workflowProblems } from '@udhay/shared';
 import { extractMentions, plainMentions } from './mentions';
 import { temporaryPassword } from './passwords';
 
@@ -170,5 +170,56 @@ describe('configurable workflow', () => {
       stages: { PRODUCTION: { label: 'Fabrication' } },
       transitions: { 'LEAD.MARK_LOST': { enabled: false } },
     });
+  });
+});
+
+describe('added stages and order', () => {
+  const custom = [{ code: 'X_PAINT1', label: 'Powder coating', short: 'Coating', team: 'PRODUCTION' as const, slaHours: 24 }];
+
+  it('places an added stage where it was put and routes work through it', () => {
+    const order = [...resolveWorkflow().stages.map((s) => s.code)];
+    order.splice(order.indexOf('PRODUCTION') + 1, 0, 'X_PAINT1');
+    const wf = resolveWorkflow({ stages: {}, transitions: {}, custom, order });
+    assert.equal(wf.find('PRODUCTION', 'COMPLETE')?.to, 'X_PAINT1');
+    assert.equal(wf.find('X_PAINT1', 'SUBMIT')?.to, 'DISPATCH');
+    assert.equal(wf.find('X_PAINT1', 'SUBMIT')?.label, 'Send to Dispatch & Delivery');
+    // "Send back" is off until switched on, then goes to the stage before.
+    assert.equal(wf.find('X_PAINT1', 'REQUEST_REVISION'), undefined);
+    const on = resolveWorkflow({ stages: {}, transitions: { 'X_PAINT1.REQUEST_REVISION': { enabled: true } }, custom, order });
+    assert.equal(on.find('X_PAINT1', 'REQUEST_REVISION')?.to, 'PRODUCTION');
+    assert.equal(on.stage('X_PAINT1').team, 'PRODUCTION');
+  });
+
+  it('moves built-in stages and keeps revision paths only where they still point back', () => {
+    const order = resolveWorkflow().stages.map((s) => s.code).filter((c) => c !== 'SITE_SURVEY');
+    order.splice(order.indexOf('CUSTOMER_DECISION') + 1, 0, 'SITE_SURVEY');
+    const wf = resolveWorkflow({ stages: {}, transitions: {}, order });
+    assert.equal(wf.find('LEAD', 'SUBMIT')?.to, 'QUOTATION_PREP');
+    assert.equal(wf.find('CUSTOMER_DECISION', 'ACCEPT')?.to, 'SITE_SURVEY');
+    assert.equal(wf.find('SITE_SURVEY', 'SUBMIT')?.to, 'BOQ_DRAWING');
+    assert.deepEqual(workflowProblems({ stages: {}, transitions: {}, order }), []);
+  });
+
+  it('reports orders that break the built-in dependencies', () => {
+    const order = resolveWorkflow().stages.map((s) => s.code);
+    [order[order.indexOf('DISPATCH')], order[order.indexOf('PRODUCTION')]] = ['PRODUCTION', 'DISPATCH'];
+    assert.deepEqual(workflowProblems({ stages: {}, transitions: {}, order }), ['Production & QC has to come before Dispatch & Delivery.']);
+    const moved = order.filter((c) => c !== 'LEAD').concat('LEAD');
+    assert.ok(workflowProblems({ stages: {}, transitions: {}, order: moved }).some((p) => p.includes('first')));
+  });
+
+  it('keeps unknown codes out and refills missing built-in stages', () => {
+    const cfg = normaliseWorkflowConfig({
+      stages: {},
+      transitions: {},
+      custom: [...custom, { code: 'bad code', label: 'x' }],
+      order: ['LEAD', 'X_PAINT1', 'NOPE'],
+    });
+    assert.deepEqual(cfg.custom?.map((c) => c.code), ['X_PAINT1']);
+    const codes = resolveWorkflow(cfg).stages.map((s) => s.code);
+    assert.equal(codes.length, 15);
+    // Missing built-in stages go back after the stage before them, keeping added stages where they were.
+    assert.deepEqual(codes.slice(0, 3), ['LEAD', 'X_PAINT1', 'SITE_SURVEY']);
+    assert.equal(codes.at(-1), 'SERVICE');
   });
 });

@@ -1,10 +1,10 @@
-import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import {
   DEFAULT_WORKFLOW,
   EMPTY_WORKFLOW_CONFIG,
-  STAGES,
   normaliseWorkflowConfig,
   resolveWorkflow,
+  workflowProblems,
   type ResolvedStage,
   type ResolvedWorkflow,
   type StageCode,
@@ -61,20 +61,42 @@ export class WorkflowConfigService implements OnModuleInit, OnModuleDestroy {
     this.apply(normaliseWorkflowConfig(row?.value));
   }
 
-  /** Active and on-hold projects per current stage, so the editor can warn before changes. */
-  async usage(): Promise<Partial<Record<StageCode, number>>> {
-    const rows = await this.prisma.project.groupBy({
-      by: ['currentStage'],
-      where: { deletedAt: null, status: { in: ['ACTIVE', 'ON_HOLD'] } },
-      _count: { _all: true },
-    });
-    return Object.fromEntries(rows.map((r) => [r.currentStage, r._count._all]));
+  /**
+   * Active and on-hold projects per current stage (so the editor can warn before changes), and the
+   * stages any project has ever been through (those can be switched off but not deleted).
+   */
+  async usage(): Promise<{ activeProjects: Partial<Record<StageCode, number>>; usedStages: StageCode[] }> {
+    const [active, used] = await Promise.all([
+      this.prisma.project.groupBy({
+        by: ['currentStage'],
+        where: { deletedAt: null, status: { in: ['ACTIVE', 'ON_HOLD'] } },
+        _count: { _all: true },
+      }),
+      this.prisma.projectStage.groupBy({ by: ['stage'] }),
+    ]);
+    return {
+      activeProjects: Object.fromEntries(active.map((r) => [r.currentStage, r._count._all])),
+      usedStages: used.map((r) => r.stage),
+    };
   }
 
   async update(actor: AuthUser, raw: unknown) {
     const before = this.config;
     const next = normaliseWorkflowConfig(raw);
+    const problems = workflowProblems(next);
+    if (problems.length) throw new BadRequestException({ message: problems.join(' '), problems });
+
     const nextResolved = resolveWorkflow(next);
+    const removed = this.resolved.stages.filter((s) => s.custom && nextResolved.index(s.code) < 0);
+    if (removed.length) {
+      const used = new Set((await this.usage()).usedStages);
+      const blocked = removed.filter((s) => used.has(s.code));
+      if (blocked.length) {
+        throw new BadRequestException(
+          `${blocked.map((s) => s.label).join(', ')} already has project history. Switch it off instead of deleting it.`,
+        );
+      }
+    }
 
     await this.prisma.$transaction(async (tx) => {
       await tx.appSetting.upsert({
@@ -83,9 +105,9 @@ export class WorkflowConfigService implements OnModuleInit, OnModuleDestroy {
         create: { key: KEY, value: next as object },
       });
       // A stage moved to another team takes its open work with it.
-      for (const s of STAGES) {
-        const team = nextResolved.stage(s.code).team;
-        if (team === this.resolved.stage(s.code).team) continue;
+      for (const s of nextResolved.stages) {
+        const team = s.team;
+        if (this.resolved.index(s.code) < 0 || team === this.resolved.stage(s.code).team) continue;
         await tx.project.updateMany({
           where: { currentStage: s.code, status: { in: ['ACTIVE', 'ON_HOLD'] } },
           data: { currentTeam: team },

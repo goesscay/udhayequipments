@@ -1,4 +1,4 @@
-// Enum values for TeamCode, StageCode, DocumentType and Scope must match
+// Enum values for TeamCode, DocumentType and Scope must match
 // packages/shared. The API asserts this at compile time (src/common/enum-sync.ts).
 
 generator client {
@@ -25,23 +25,6 @@ enum Scope {
   OWN
   TEAM
   ALL
-}
-
-enum StageCode {
-  LEAD
-  SITE_SURVEY
-  QUOTATION_PREP
-  QUOTATION_SHARED
-  CUSTOMER_DECISION
-  BOQ_DRAWING
-  LAYOUT_APPROVAL
-  CAD_DRAWING
-  HEAD_APPROVAL
-  PRODUCTION
-  DISPATCH
-  INSTALLATION
-  HANDOVER
-  SERVICE
 }
 
 enum ProjectStatus {
@@ -269,7 +252,7 @@ model Project {
   estimatedValue Decimal?      @db.Decimal(14, 2)
   priority       Priority      @default(NORMAL)
   status         ProjectStatus @default(ACTIVE)
-  currentStage   StageCode     @default(LEAD)
+  currentStage   String        @default("LEAD") @db.VarChar(40)
   currentTeam    TeamCode      @default(SALES)
   stageDueAt     DateTime?
   holdReason     String?       @db.Text
@@ -308,7 +291,7 @@ model Project {
 model ProjectStage {
   id            String      @id @default(cuid())
   projectId     String
-  stage         StageCode
+  stage         String    @db.VarChar(40)
   team          TeamCode
   cycle         Int         @default(1)
   status        StageStatus @default(OPEN)
@@ -334,8 +317,8 @@ model ProjectStage {
 model StageTransition {
   id        String     @id @default(cuid())
   projectId String
-  fromStage StageCode?
-  toStage   StageCode?
+  fromStage String?   @db.VarChar(40)
+  toStage   String?   @db.VarChar(40)
   action    String     @db.VarChar(40)
   reason    String?    @db.Text
   byUserId  String
@@ -351,7 +334,7 @@ model StageTransition {
 model Document {
   id           String       @id @default(cuid())
   projectId    String
-  stage        StageCode
+  stage        String    @db.VarChar(40)
   type         DocumentType
   version      Int
   fileName     String
@@ -388,7 +371,7 @@ model Notification {
 model Comment {
   id        String     @id @default(cuid())
   projectId String
-  stage     StageCode?
+  stage     String?   @db.VarChar(40)
   body      String     @db.Text
   /// User ids mentioned with @ in the body
   mentions  Json?
@@ -429,7 +412,7 @@ model JobLock {
 }
 
 model StageSetting {
-  stage    StageCode @id
+  stage    String @id @db.VarChar(40)
   slaHours Int
 }
 

@@ -1,6 +1,6 @@
 import { BadRequestException, Body, Controller, Delete, Get, Global, Injectable, Module, Post, Put } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import { PRIORITIES, STAGE_CODES, STAGES, type AppRules, type Priority, type StageCode } from '@udhay/shared';
+import { PRIORITIES, type AppRules, type Priority, type StageCode } from '@udhay/shared';
 import { Type } from 'class-transformer';
 import {
   ArrayMaxSize,
@@ -10,7 +10,9 @@ import {
   IsInt,
   IsObject,
   IsOptional,
+  IsString,
   Max,
+  MaxLength,
   Min,
   ValidateNested,
 } from 'class-validator';
@@ -23,14 +25,14 @@ import { DemoDataService } from './demo-data.service';
 import { WorkflowConfigService } from './workflow-config.service';
 
 class StageSlaDto {
-  @IsIn(STAGE_CODES) stage: StageCode;
+  @IsString() @MaxLength(40) stage: StageCode;
   /** Up to two years, for stages like Service that run for the warranty period. */
   @IsInt() @Min(1) @Max(17_520) slaHours: number;
 }
 
 class UpdateStageSlasDto {
   @IsArray()
-  @ArrayMaxSize(STAGE_CODES.length)
+  @ArrayMaxSize(100)
   @ValidateNested({ each: true })
   @Type(() => StageSlaDto)
   stages: StageSlaDto[];
@@ -47,6 +49,8 @@ class TicketSlaDto implements Partial<Record<Priority, number>> {
 class UpdateWorkflowDto {
   @IsObject() stages: Record<string, unknown>;
   @IsObject() transitions: Record<string, unknown>;
+  @IsOptional() @IsArray() @ArrayMaxSize(50) custom?: unknown[];
+  @IsOptional() @IsArray() @ArrayMaxSize(100) order?: unknown[];
 }
 
 class UpdateRulesDto {
@@ -61,12 +65,13 @@ class SettingsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    private readonly workflow: WorkflowConfigService,
   ) {}
 
   async stageSlas() {
     const rows = await this.prisma.stageSetting.findMany();
     const hours = new Map(rows.map((r) => [r.stage, r.slaHours]));
-    return STAGES.map((s) => ({
+    return this.workflow.current.stages.map((s) => ({
       stage: s.code,
       slaHours: hours.get(s.code) ?? s.slaHours,
       defaultHours: s.slaHours,
@@ -77,6 +82,8 @@ class SettingsService {
   async updateStageSlas(actor: AuthUser, dto: UpdateStageSlasDto) {
     const codes = dto.stages.map((s) => s.stage);
     if (new Set(codes).size !== codes.length) throw new BadRequestException('Each stage may appear only once');
+    const unknown = codes.filter((c) => this.workflow.current.index(c) < 0);
+    if (unknown.length) throw new BadRequestException(`Unknown stage: ${unknown.join(', ')}`);
 
     const before = new Map((await this.stageSlas()).map((s) => [s.stage, s.slaHours]));
     const changed = dto.stages.filter((s) => before.get(s.stage) !== s.slaHours);
@@ -119,14 +126,14 @@ class SettingsController {
   @Get('workflow')
   @RequirePermissions('settings.manage')
   async getWorkflow() {
-    return { config: this.workflow.stored, activeProjects: await this.workflow.usage() };
+    return { config: this.workflow.stored, ...(await this.workflow.usage()) };
   }
 
   @Put('workflow')
   @RequirePermissions('settings.manage')
   async updateWorkflow(@CurrentUser() user: AuthUser, @Body() dto: UpdateWorkflowDto) {
     const config = await this.workflow.update(user, dto);
-    return { config, activeProjects: await this.workflow.usage() };
+    return { config, ...(await this.workflow.usage()) };
   }
 
   @Get('demo-data')

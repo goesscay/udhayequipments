@@ -5,10 +5,10 @@ import {
   DOCUMENT_LABELS,
   DOCUMENT_TYPES,
   TEAM_LABELS,
-  stageIndex,
   type AvailableAction,
   type DocumentType,
   type ProjectDetail,
+  type ResolvedWorkflow,
 } from '@udhay/shared';
 import { AlertCircle, ArrowLeft, Download, FileText, MapPin, Pencil, Phone, Upload } from 'lucide-react';
 import Link from 'next/link';
@@ -30,6 +30,7 @@ import { Field, Select, Textarea } from '@/components/ui/form';
 import { Sheet } from '@/components/ui/sheet';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { useWorkflow } from '@/lib/workflow';
 import { uploadDocument } from '@/lib/upload';
 import { cn, formatDate, formatINR, humanize, timeAgo } from '@/lib/utils';
 
@@ -47,15 +48,16 @@ const TAB_LABELS: Record<Tab, string> = {
 };
 
 /** Operational tabs appear once the project reaches the stage they belong to. */
-function tabsFor(p: ProjectDetail, canSeePrices: boolean): Tab[] {
-  const at = stageIndex(p.currentStage);
+/** Tabs appear once the project has reached the stage they belong to, in the configured order. */
+function tabsFor(p: ProjectDetail, canSeePrices: boolean, wf: ResolvedWorkflow): Tab[] {
+  const at = wf.index(p.currentStage);
   const closed = p.status === 'COMPLETED';
   const tabs: Tab[] = ['timeline', 'documents', 'comments'];
   if (canSeePrices) tabs.push('payments');
-  if (at >= stageIndex('CAD_DRAWING') || closed) tabs.push('production');
-  if (at >= stageIndex('PRODUCTION') || closed) tabs.push('dispatch');
-  if (at >= stageIndex('DISPATCH') || closed) tabs.push('site');
-  if (at >= stageIndex('SERVICE') || closed) tabs.push('service');
+  if (at >= wf.index('CAD_DRAWING') || closed) tabs.push('production');
+  if (at >= wf.index('PRODUCTION') || closed) tabs.push('dispatch');
+  if (at >= wf.index('DISPATCH') || closed) tabs.push('site');
+  if (at >= wf.index('SERVICE') || closed) tabs.push('service');
   return tabs;
 }
 
@@ -80,6 +82,7 @@ export default function ProjectPage() {
   const { id } = useParams<{ id: string }>();
   const qc = useQueryClient();
   const { can } = useAuth();
+  const wf = useWorkflow();
   const [editing, setEditing] = useState(false);
   const [tabChoice, setTab] = useState<Tab | null>(null);
   const [pending, setPending] = useState<AvailableAction | null>(null);
@@ -125,7 +128,7 @@ export default function ProjectPage() {
   }
 
   const open = [...p.stages].reverse().find((s) => s.status === 'OPEN');
-  const tabs = tabsFor(p, can('price.view'));
+  const tabs = tabsFor(p, can('price.view'), wf);
   const tab: Tab = tabChoice && tabs.includes(tabChoice) ? tabChoice : tabs.includes(defaultTab(p)) ? defaultTab(p) : 'timeline';
   const active = p.status === 'ACTIVE';
 

@@ -17,7 +17,10 @@ export const STAGE_CODES = [
   'SERVICE',
 ] as const;
 
-export type StageCode = (typeof STAGE_CODES)[number];
+/** The 14 stages the app ships with. Settings → Workflow can add more (codes starting with "X_"). */
+export type BuiltinStageCode = (typeof STAGE_CODES)[number];
+/** Any stage code: built-in or added in Settings → Workflow. */
+export type StageCode = string;
 
 export interface StageDef {
   code: StageCode;
@@ -50,7 +53,8 @@ export const STAGE_BY_CODE = Object.fromEntries(STAGES.map((s) => [s.code, s])) 
   StageDef
 >;
 
-export const stageIndex = (code: StageCode): number => STAGE_CODES.indexOf(code);
+/** Position in the built-in order (-1 for added stages). For the configured order use the workflow's index(). */
+export const stageIndex = (code: StageCode): number => STAGE_CODES.indexOf(code as BuiltinStageCode);
 
 export const PROJECT_STATUSES = ['ACTIVE', 'ON_HOLD', 'LOST', 'COMPLETED', 'CANCELLED'] as const;
 export type ProjectStatus = (typeof PROJECT_STATUSES)[number];

@@ -1,7 +1,6 @@
 import {
   PRIORITIES,
   PROJECT_STATUSES,
-  STAGE_CODES,
   TEAMS,
   WORKFLOW_ACTIONS,
   type Priority,
@@ -61,7 +60,7 @@ export class UpdateProjectDto {
 
 export class ListProjectsQuery {
   @IsOptional() @IsIn(PROJECT_STATUSES) status?: ProjectStatus;
-  @IsOptional() @IsIn(STAGE_CODES) stage?: StageCode;
+  @IsOptional() @IsString() @MaxLength(40) stage?: StageCode;
   @IsOptional() @IsIn(TEAMS) team?: TeamCode;
   @IsOptional() @IsString() @MaxLength(100) search?: string;
   @IsOptional() @Transform(({ value }) => value === 'true' || value === true) @IsBoolean() overdue?: boolean;
