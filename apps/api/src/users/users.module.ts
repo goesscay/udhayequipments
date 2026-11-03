@@ -296,7 +296,7 @@ class UsersService {
       const mapping = mapDepartment(row.department);
       if (!mapping) { skip(`Unknown department "${row.department ?? ''}"`); continue; }
       const role = roleByCode.get(mapping.role);
-      if (!role) { skip(`Role ${mapping.role} is missing`); continue; }
+      if (!role) { skip(`No "${mapping.role}" role yet: create it in Settings → Roles`); continue; }
       if (role.code === 'SUPER_ADMIN') { skip('Super Admin cannot be imported'); continue; }
       if (takenCodes.has(code)) { skip('Employee code already exists'); continue; }
       const phone = normalizePhone(row.phone);

@@ -36,7 +36,7 @@ export async function runSeed(prisma: PrismaClient, opts: SeedOptions = {}) {
   }
 
   // Permissions added by a release are granted to existing system roles below, so new features
-  // work for Team Heads etc. without overwriting what the Super Admin changed on older ones.
+  // work for the department roles without overwriting what the Super Admin changed on older ones.
   const knownKeys = new Set((await prisma.permission.findMany({ select: { key: true } })).map((p) => p.key));
   const newKeys = PERMISSION_KEYS.filter((k) => !knownKeys.has(k));
 
@@ -108,14 +108,12 @@ export async function runSeed(prisma: PrismaClient, opts: SeedOptions = {}) {
     const demo: [string, string, RoleCode, TeamCode][] = [
       ['Office Admin', 'admin@udhay.local', 'ADMIN', 'MANAGEMENT'],
       ['Operations Executive', 'operations@udhay.local', 'OPERATIONS', 'OPERATIONS'],
-      ['Overall Head', 'head@udhay.local', 'DIRECTOR', 'MANAGEMENT'],
-      ['Sales Head', 'sales.head@udhay.local', 'TEAM_HEAD', 'SALES'],
-      ['Sales Executive', 'sales@udhay.local', 'TEAM_MEMBER', 'SALES'],
-      ['Project Engineer', 'project@udhay.local', 'TEAM_MEMBER', 'PROJECT'],
-      ['CAD Draftsman', 'cad@udhay.local', 'TEAM_MEMBER', 'CAD'],
-      ['Production Supervisor', 'production@udhay.local', 'TEAM_HEAD', 'PRODUCTION'],
-      ['Dispatch Coordinator', 'dispatch@udhay.local', 'TEAM_MEMBER', 'DISPATCH'],
-      ['Service Technician', 'service@udhay.local', 'TEAM_MEMBER', 'SERVICE'],
+      ['Sales Executive', 'sales@udhay.local', 'SALES', 'SALES'],
+      ['Project Engineer', 'project@udhay.local', 'PROJECT', 'PROJECT'],
+      ['CAD Draftsman', 'cad@udhay.local', 'CAD', 'CAD'],
+      ['Production Supervisor', 'production@udhay.local', 'ADMIN', 'PRODUCTION'],
+      ['Dispatch Coordinator', 'dispatch@udhay.local', 'ADMIN', 'DISPATCH'],
+      ['Service Technician', 'service@udhay.local', 'SERVICE', 'SERVICE'],
     ];
     for (const [name, mail, role, team] of demo) {
       await createUser(name, mail, opts.demoUsers.password, role, team);

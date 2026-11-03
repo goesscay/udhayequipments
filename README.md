@@ -80,7 +80,7 @@ Sign in with the seed credentials from `apps/api/.env` (`SEED_SUPERADMIN_EMAIL` 
 ### RBAC
 - Each permission is a `resource.action` key granted to a role with a scope of `OWN`, `TEAM` or `ALL`.
 - Global guards handle authentication (`JwtAuthGuard`) and whether the permission exists (`PermissionsGuard`). `AccessService` applies the scope inside database queries, so users never receive rows outside their scope.
-- Default roles: Super Admin, Admin, Overall Head (CAD approval), Team Head, Team Member and Viewer. Super Admin can edit roles via `PUT /api/roles/:id/permissions`.
+- Default roles: Super Admin, Admin, Operations, Accounts, Purchase, Sales, CAD, Project and Service. Super Admin can edit roles via `PUT /api/roles/:id/permissions`.
 - Prices and commercial documents (quotation, BOQ) are hidden from roles without `price.view`.
 
 ### Operations (Phase 2)
@@ -104,16 +104,16 @@ Each project gets tabs that appear as it reaches the relevant stage.
 - `apps/api/test/e2e-flow.mjs`: an end-to-end upgrade test. Phase 1 runs against the previous release to create users and a project at Head Approval. Phase 2 runs against the new release on the same database: it checks the migration and new permissions, then walks payments → production → dispatch → snags → handover → service, including every blocked step and permission denial. **Only ever point it at a throwaway database**; it refuses the production domain.
 
 ### Teams and roles
-- **Teams** (who owns each workflow stage): Management, Sales, Project, **Operations** (Quotation Preparation and BOQ & Soft Drawing; called "Admin" before 23 Oct 2026), CAD, Production, **Quality Check (QC)** (added Nov 2026; move QC staff into it from Users), Dispatch, Support & Service.
+- **Teams** (who owns each workflow stage): Management, Sales, Project, **Operations** (Quotation Preparation and BOQ & Soft Drawing; called "Admin" before 23 Oct 2026), CAD, Production, **Quality Check (QC)** (added Nov 2026; move QC staff into it from Users), Dispatch, Support & Service, plus **Accounts** and **Purchase** (no workflow stage of their own; added Nov 2026).
 - **System roles:**
   - **Super Admin:** everything.
   - **Admin:** all projects, users, payments.
   - **Operations:** for the Operations team. Covers quotations, BOQ, documents, prices and payments on its team's projects; no user or role management.
   - **Accounts:** payments, prices and reports on every project; no workflow actions.
   - **Purchase:** read-only access to every project, its BOQ and drawings.
-  - **Overall Head:** CAD approval and oversight.
-  - **Team Head** and **Team Member:** work within their own team.
-  - **Viewer:** read-only.
+  - **Sales**, **CAD**, **Project**, **Service:** one per department; anyone in the team can act on, and upload documents for, its stages. Sales also creates leads and customers and sees prices; Project manages snags and handover; Service handles tickets.
+  - MEP Layout Approval needs `cad.approve`, which only Super Admin has by default; grant it to Admin in Settings → Roles if Admins should approve.
+  - Overall Head, Team Head, Team Member and Viewer were removed in Nov 2026 (migration `20261105000000_department_roles`). Production, QC and Dispatch have no role yet: create one with code `PRODUCTION`, `QC` or `DISPATCH` and the Excel import uses it for that department.
 
 ### Staff accounts
 - **Sign-in:** people sign in with their **employee code** (e.g. `EMP005`), **mobile number** or email. Email is optional.
@@ -122,7 +122,7 @@ Each project gets tabs that appear as it reaches the relevant stage.
   - Upload the HR sheet (columns: Code, Employee Name, Display Name, Mobile number, Gender, Department Name, Status, Employment Type, Date of Joining, Date of Birth).
   - A preview shows each person's mapped team and role before anything is saved.
   - Importing then creates everyone with a random temporary password, shown once with a CSV download.
-  - Department → team/role: Operations → Operations; Design Engineer → CAD; Project Co-ordinator → Project; Sales Co-ordinator → Sales; Service → Support & Service; Accounts → Accounts role (no team); Purchase → Purchase role (no team).
+  - Department → team and role (`DEPARTMENT_MAP`): Operations, Accounts, Purchase, Sales, CAD (Design Engineer), Project (Project Co-ordinator) and Service (Service & Support) each get the team and role of that name; Management gets Admin. Accounts and Purchase became teams in Nov 2026.
   - Everyone starts as a Team Member in their team; promote team heads in Users → Edit.
 - **Deleting a user (Super Admin only):** Users → trash icon, or Edit → Delete user. It is a soft delete: the person can't sign in and leaves the list, while past projects, comments and the audit log keep their name. Their employee code, mobile and email are freed for reuse (the old values are kept in the audit log). Their open stages and service tickets go back to the team. You can't delete yourself or the last active Super Admin.
 - **Temporary passwords:** passwords set by an admin (new user, import or reset) are temporary. The API refuses everything except signing out and changing the password until the person chooses their own.

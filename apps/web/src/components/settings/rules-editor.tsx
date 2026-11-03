@@ -42,7 +42,7 @@ export function RulesEditor() {
           checked={draft.advanceBeforeProduction}
           onChange={(v) => setDraft({ ...draft, advanceBeforeProduction: v })}
           title="No production without the advance"
-          detail="The Overall Head can't release a project to Production until an Advance payment is received or waived."
+          detail="A project can't be released to Production until an Advance payment is received or waived."
         />
         <Toggle
           checked={draft.preDispatchBeforeDispatch}

@@ -1,4 +1,3 @@
-import type { RoleCode } from './permissions';
 import type { TeamCode } from './teams';
 
 /** Staff profile fields and the HR-sheet import mapping. */
@@ -10,31 +9,32 @@ export const EMPLOYMENT_TYPES = ['Full Time', 'Part Time', 'Contract', 'Intern']
 export type EmploymentType = (typeof EMPLOYMENT_TYPES)[number];
 
 /**
- * How an HR department maps onto the app: the workflow team the person works in (if any)
- * and their starting role. Departments without a workflow stage (Accounts, Purchase) get no team.
+ * How an HR department maps onto the app: the team the person works in and their starting role
+ * (by role code). Production, QC and Dispatch have no role yet; create one with that code in
+ * Settings → Roles and the import picks it up.
  */
-export const DEPARTMENT_MAP: Record<string, { team: TeamCode | null; role: RoleCode }> = {
-  accounts: { team: null, role: 'ACCOUNTS' },
-  purchase: { team: null, role: 'PURCHASE' },
+export const DEPARTMENT_MAP: Record<string, { team: TeamCode | null; role: string }> = {
+  accounts: { team: 'ACCOUNTS', role: 'ACCOUNTS' },
+  purchase: { team: 'PURCHASE', role: 'PURCHASE' },
   operations: { team: 'OPERATIONS', role: 'OPERATIONS' },
-  'design engineer': { team: 'CAD', role: 'TEAM_MEMBER' },
-  cad: { team: 'CAD', role: 'TEAM_MEMBER' },
-  'project co-ordinator': { team: 'PROJECT', role: 'TEAM_MEMBER' },
-  'project coordinator': { team: 'PROJECT', role: 'TEAM_MEMBER' },
-  project: { team: 'PROJECT', role: 'TEAM_MEMBER' },
-  'sales co-ordinator': { team: 'SALES', role: 'TEAM_MEMBER' },
-  'sales coordinator': { team: 'SALES', role: 'TEAM_MEMBER' },
-  sales: { team: 'SALES', role: 'TEAM_MEMBER' },
-  service: { team: 'SERVICE', role: 'TEAM_MEMBER' },
-  'service & support': { team: 'SERVICE', role: 'TEAM_MEMBER' },
-  'support & service': { team: 'SERVICE', role: 'TEAM_MEMBER' },
-  support: { team: 'SERVICE', role: 'TEAM_MEMBER' },
-  production: { team: 'PRODUCTION', role: 'TEAM_MEMBER' },
-  qc: { team: 'QC', role: 'TEAM_MEMBER' },
-  'quality check': { team: 'QC', role: 'TEAM_MEMBER' },
-  'quality control': { team: 'QC', role: 'TEAM_MEMBER' },
-  dispatch: { team: 'DISPATCH', role: 'TEAM_MEMBER' },
-  management: { team: 'MANAGEMENT', role: 'DIRECTOR' },
+  'design engineer': { team: 'CAD', role: 'CAD' },
+  cad: { team: 'CAD', role: 'CAD' },
+  'project co-ordinator': { team: 'PROJECT', role: 'PROJECT' },
+  'project coordinator': { team: 'PROJECT', role: 'PROJECT' },
+  project: { team: 'PROJECT', role: 'PROJECT' },
+  'sales co-ordinator': { team: 'SALES', role: 'SALES' },
+  'sales coordinator': { team: 'SALES', role: 'SALES' },
+  sales: { team: 'SALES', role: 'SALES' },
+  service: { team: 'SERVICE', role: 'SERVICE' },
+  'service & support': { team: 'SERVICE', role: 'SERVICE' },
+  'support & service': { team: 'SERVICE', role: 'SERVICE' },
+  support: { team: 'SERVICE', role: 'SERVICE' },
+  production: { team: 'PRODUCTION', role: 'PRODUCTION' },
+  qc: { team: 'QC', role: 'QC' },
+  'quality check': { team: 'QC', role: 'QC' },
+  'quality control': { team: 'QC', role: 'QC' },
+  dispatch: { team: 'DISPATCH', role: 'DISPATCH' },
+  management: { team: 'MANAGEMENT', role: 'ADMIN' },
 };
 
 export const DEPARTMENTS = [

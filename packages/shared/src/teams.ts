@@ -8,6 +8,8 @@ export const TEAMS = [
   'QC',
   'DISPATCH',
   'SERVICE',
+  'ACCOUNTS',
+  'PURCHASE',
 ] as const;
 
 export type TeamCode = (typeof TEAMS)[number];
@@ -22,4 +24,6 @@ export const TEAM_LABELS: Record<TeamCode, string> = {
   QC: 'Quality Check (QC)',
   DISPATCH: 'Dispatch',
   SERVICE: 'Support & Service',
+  ACCOUNTS: 'Accounts',
+  PURCHASE: 'Purchase',
 };

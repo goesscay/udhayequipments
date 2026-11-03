@@ -20,6 +20,8 @@ enum TeamCode {
   QC
   DISPATCH
   SERVICE
+  ACCOUNTS
+  PURCHASE
 }
 
 enum Scope {

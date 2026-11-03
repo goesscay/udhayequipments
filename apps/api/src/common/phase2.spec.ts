@@ -98,15 +98,15 @@ describe('people helpers', () => {
   });
 
   it('maps every department in the staff sheet to a team and role', () => {
-    assert.deepEqual(mapDepartment('Accounts '), { team: null, role: 'ACCOUNTS' });
-    assert.deepEqual(mapDepartment('Purchase'), { team: null, role: 'PURCHASE' });
+    assert.deepEqual(mapDepartment('Accounts '), { team: 'ACCOUNTS', role: 'ACCOUNTS' });
+    assert.deepEqual(mapDepartment('Purchase'), { team: 'PURCHASE', role: 'PURCHASE' });
     assert.deepEqual(mapDepartment('Operations'), { team: 'OPERATIONS', role: 'OPERATIONS' });
-    assert.deepEqual(mapDepartment('Design Engineer'), { team: 'CAD', role: 'TEAM_MEMBER' });
-    assert.deepEqual(mapDepartment('Project Co-ordinator'), { team: 'PROJECT', role: 'TEAM_MEMBER' });
-    assert.deepEqual(mapDepartment('Sales Co-ordinator'), { team: 'SALES', role: 'TEAM_MEMBER' });
-    assert.deepEqual(mapDepartment('Service'), { team: 'SERVICE', role: 'TEAM_MEMBER' });
-    assert.deepEqual(mapDepartment('QC'), { team: 'QC', role: 'TEAM_MEMBER' });
-    assert.deepEqual(mapDepartment('SERVICE & SUPPORT'), { team: 'SERVICE', role: 'TEAM_MEMBER' });
+    assert.deepEqual(mapDepartment('Design Engineer'), { team: 'CAD', role: 'CAD' });
+    assert.deepEqual(mapDepartment('Project Co-ordinator'), { team: 'PROJECT', role: 'PROJECT' });
+    assert.deepEqual(mapDepartment('Sales Co-ordinator'), { team: 'SALES', role: 'SALES' });
+    assert.deepEqual(mapDepartment('Service'), { team: 'SERVICE', role: 'SERVICE' });
+    assert.deepEqual(mapDepartment('QC'), { team: 'QC', role: 'QC' });
+    assert.deepEqual(mapDepartment('SERVICE & SUPPORT'), { team: 'SERVICE', role: 'SERVICE' });
     assert.equal(mapDepartment('Canteen'), null);
   });
 
